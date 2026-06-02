@@ -8,7 +8,7 @@ import inspect
 import logging
 from pancake import oven
 
-from ..auto_inject import _get_param_types
+from ..inject import _get_param_types
 
 logger = logging.getLogger(__name__)
 

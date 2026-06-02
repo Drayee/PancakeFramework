@@ -27,9 +27,12 @@ pancake/                    # 框架核心
 │   └── default.py          # 默认初始化: 加载 YAML/JSON，初始化 dough/pie/other
 ├── ovenware/               # 插件模块 (自动发现加载)
 │   ├── base.py             # @Service 装饰器
-│   ├── auto_inject.py      # @auto_inject() 自动依赖注入
+│   ├── inject.py           # 统一依赖注入: IoCContainer + @auto_inject + @inject
 │   ├── web.py              # FastAPI: @get_controller / @post_controller
 │   ├── embed.py            # builtins 注入 (init_order=-10, 最先加载)
+│   ├── broker.py           # 消息队列: @event_node / @on_event, SimpleBroker / RedisBroker
+│   ├── lifecycle.py        # 生命周期: Lifecycle 基类, @lifecycle_node, LifecycleManager
+│   ├── remote.py           # 远程调用: @remote_node, HttpRemote / GrpcRemote
 │   ├── external_plugin.py  # 外部插件加载 (EXTERNAL_PLUGIN_DIRS 环境变量)
 │   ├── mybatis/            # MyBatis Plus ORM
 │   │   ├── mapper.py       # @Mapper, BaseMapper, @Select/@Insert/@Update/@Delete
@@ -37,12 +40,8 @@ pancake/                    # 框架核心
 │   │   ├── sql_parser.py   # #{param} 绑定 + 动态 SQL (<if>/<where>/<set>/<foreach>/<choose>)
 │   │   ├── connection.py   # 异步数据库连接管理 (databases 库)
 │   │   └── config.py       # mybatis 配置加载
-│   └── langgraph/          # AI 工作流 + IoC + 消息队列
-│       ├── core.py         # @langgraph_node / @langgraph_edge
-│       ├── ioc.py          # IoCContainer, @inject, Scope (SINGLETON/TRANSIENT/SCOPED)
-│       ├── broker.py       # @event_node / @on_event, SimpleBroker / RedisBroker
-│       ├── lifecycle.py    # Lifecycle 基类 (on_init/on_start/on_stop/on_error)
-│       └── remote.py       # @remote_node, HttpRemote / GrpcRemote
+│   └── langgraph/          # AI 工作流核心
+│       └── core.py         # @langgraph_node / @langgraph_edge
 ├── builder/                # 构建流水线
 │   ├── build.py            # 实例化所有 Service，执行 BuildOrder
 │   ├── load_dlc.py         # 自动发现 ovenware/ 下的插件，按 init_order 排序加载

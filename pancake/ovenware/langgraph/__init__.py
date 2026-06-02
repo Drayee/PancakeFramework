@@ -1,22 +1,20 @@
 """
-Langgraph 插件 - 支持 IoC 和分布式开发
+Langgraph 插件 - AI 工作流核心
+消息队列、生命周期、远程调用已移至 ovenware 顶层
 """
 
 from .core import langgraph_node, langgraph_edge, Main
-from ..ioc import IoCContainer, inject, container
-from .remote import remote_node, HttpRemote, GrpcRemote
-from .broker import event_node, SimpleBroker, RedisBroker
-from .lifecycle import Lifecycle
+from ..broker import event_node, on_event, SimpleBroker, RedisBroker, get_broker, set_broker
+from ..lifecycle import Lifecycle, LifecycleManager, lifecycle_node, lifecycle_context, lifecycle_manager
+from ..remote import remote_node, HttpRemote, GrpcRemote, proxy
 
 __all__ = [
-    # 核心（向后兼容）
+    # 工作流核心
     "langgraph_node", "langgraph_edge", "Main",
-    # IoC
-    "IoCContainer", "inject", "container",
-    # 分布式
-    "remote_node", "HttpRemote", "GrpcRemote",
     # 消息队列
-    "event_node", "SimpleBroker", "RedisBroker",
+    "event_node", "on_event", "SimpleBroker", "RedisBroker", "get_broker", "set_broker",
     # 生命周期
-    "Lifecycle",
+    "Lifecycle", "LifecycleManager", "lifecycle_node", "lifecycle_context", "lifecycle_manager",
+    # 远程调用
+    "remote_node", "HttpRemote", "GrpcRemote", "proxy",
 ]

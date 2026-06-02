@@ -2,7 +2,7 @@ import functools
 import inspect
 import logging
 from pancake import oven
-from .auto_inject import auto_inject
+from .inject import auto_inject
 
 logger = logging.getLogger(__name__)
 
