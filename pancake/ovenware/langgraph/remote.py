@@ -8,7 +8,7 @@ import logging
 import asyncio
 from typing import Any, Callable, Optional
 
-import oven
+from pancake import oven
 
 logger = logging.getLogger(__name__)
 

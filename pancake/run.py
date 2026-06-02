@@ -1,14 +1,14 @@
 import logging
-import oven
+from pancake import oven
 from .tool import ProgressBar
-from . import build
-from oven import default
+from . import builder
+from pancake.oven import default
 
 logger = logging.getLogger("Pancake_Main")
 
 def load_xml():
     """加载 XML 启动配置"""
-    from resource import xml_config
+    from pancake.resource import xml_config
     xml_data = xml_config.load_xml()
     oven.pancake_xml.update(xml_data)
 
@@ -18,7 +18,7 @@ def load_config():
 
 def load_ovenware():
     """加载功能"""
-    build.load_dlc.run()
+    builder.load_dlc.run()
 
 def oven_init():
     """初始化oven"""
@@ -26,7 +26,7 @@ def oven_init():
 
 def load_dish():
     """加载用户代码"""
-    build.load_src.run()
+    builder.load_src.run()
 
 def run_loop_methods():
     """运行所有 loop_method"""
@@ -36,7 +36,7 @@ def run_loop_methods():
 
 def build_all():
     """构建服务"""
-    build.build.build()
+    builder.build.build()
 
 def run():
     """运行服务"""

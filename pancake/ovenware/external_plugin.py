@@ -40,7 +40,7 @@ class Main(InitAction):
         import importlib.util
         spec = importlib.util.spec_from_file_location(
             "load_src",
-            os.path.join(os.path.dirname(__file__), "..", "build", "load_src.py")
+            os.path.join(os.path.dirname(__file__), "..", "builder", "load_src.py")
         )
         load_src = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(load_src)

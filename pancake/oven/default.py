@@ -1,7 +1,7 @@
-from tool import ProgressBar
+from pancake.tool import ProgressBar
 
 def pancake_default_before():
-    import oven
+    from pancake import oven
     oven.pancake_dough.update({
         "Service": {},
         "Mapper": {}
@@ -15,7 +15,7 @@ def pancake_default_before():
         "path": {},
         "System": {}
     })
-    from resource import json, yml
+    from pancake.resource import json, yml
     oven.pancake_json.update(json.json_init())
     oven.pancake_yaml.update(yml.yaml_init() | {"framework.disable_dlc": []})
 
@@ -32,7 +32,7 @@ def pancake_default_before():
             oven.pancake_yaml.update(plugin_config)
 
 def muffin_default_before():
-    import oven
+    from pancake import oven
     oven.muffin_egg.update({
         "Builder": {},
         "LoopMethod": {},

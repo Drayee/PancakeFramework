@@ -9,7 +9,7 @@ import logging
 from typing import Any, Callable, Optional
 from collections import defaultdict
 
-import oven
+from pancake import oven
 
 logger = logging.getLogger(__name__)
 

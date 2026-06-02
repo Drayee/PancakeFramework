@@ -3,10 +3,13 @@ import logging
 
 
 logger = logging.getLogger(__name__)
-yaml_file_dir = 'resource/yaml'
 
 def yaml_init():
+    from pancake.settings import get_path
+    yaml_file_dir = get_path("yaml_dir")
     data = {}
+    if not os.path.exists(yaml_file_dir):
+        return data
     for yaml_file in os.listdir(yaml_file_dir):
         if yaml_file.endswith('.yml') or yaml_file.endswith('.yaml'):
             with open(f'{yaml_file_dir}/{yaml_file}', 'r',encoding="utf-8") as f:

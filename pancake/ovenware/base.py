@@ -1,7 +1,7 @@
 import functools
 import inspect
 import logging
-import oven
+from pancake import oven
 from .auto_inject import auto_inject
 
 logger = logging.getLogger(__name__)

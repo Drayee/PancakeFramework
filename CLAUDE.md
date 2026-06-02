@@ -18,7 +18,7 @@ Pancake 是一个全栈 Python 框架，核心理念是"零 import"——通过 
 ## 项目结构
 
 ```
-framework/                  # 框架核心
+pancake/                    # 框架核心
 ├── __init__.py             # 入口引导: init() -> initialize 检查 -> 加载资源
 ├── run.py                  # 启动流水线: load_config -> load_ovenware -> oven_init -> load_dish -> build -> run_loop
 ├── oven/                   # 全局注册表
@@ -43,10 +43,12 @@ framework/                  # 框架核心
 │       ├── broker.py       # @event_node / @on_event, SimpleBroker / RedisBroker
 │       ├── lifecycle.py    # Lifecycle 基类 (on_init/on_start/on_stop/on_error)
 │       └── remote.py       # @remote_node, HttpRemote / GrpcRemote
-├── build/                  # 构建流水线
+├── builder/                # 构建流水线
 │   ├── build.py            # 实例化所有 Service，执行 BuildOrder
 │   ├── load_dlc.py         # 自动发现 ovenware/ 下的插件，按 init_order 排序加载
 │   └── load_src.py         # 扫描 src/ 下的 .py 文件，按 _load_priority 排序注册
+├── settings.py             # 集中配置管理（路径、服务、数据库）
+├── cli.py                  # CLI 命令行工具 (pancake create/run/check/build)
 ├── initialize/             # 环境检查
 │   ├── check_env.py        # Poetry/依赖自动安装
 │   ├── check_struct.py     # 项目结构完整性检查
@@ -70,8 +72,8 @@ tests/                      # 测试
 
 ## 启动流程
 
-1. `main.py` -> `framework.run()`
-2. `framework/__init__.py` -> `init()`: 环境检查、结构检查、加载 resource 配置
+1. `main.py` -> `pancake.run()`
+2. `pancake/__init__.py` -> `init()`: 环境检查、结构检查、加载 resource 配置
 3. `run.py` -> 按顺序执行:
    - `load_config`: 加载 YAML/JSON 配置到 `oven.pancake_yaml/json`
    - `load_ovenware`: 自动发现并加载 ovenware/ 插件 (按 `init_order` 排序)
@@ -90,7 +92,7 @@ tests/                      # 测试
 
 ### 自定义插件
 
-在 `framework/ovenware/` 下创建 `.py` 文件或子包，定义 `Main` 类 (含 `init_order`, `build()`, 可选 `check()`, `loop_method()`)。或通过 `EXTERNAL_PLUGIN_DIRS` 环境变量加载外部插件。
+在 `pancake/ovenware/` 下创建 `.py` 文件或子包，定义 `Main` 类 (含 `init_order`, `build()`, 可选 `check()`, `loop_method()`)。或通过 `EXTERNAL_PLUGIN_DIRS` 环境变量加载外部插件。
 
 禁用内置插件: 在任意 YAML 中配置 `framework.disable_dlc: [langgraph, external_plugin]`
 
@@ -185,7 +187,7 @@ Commit 消息规范:
 python -m pytest tests/ -v
 ```
 
-测试文件在 `tests/` 下，需手动 `sys.path.insert` 指向 `framework/` 目录。
+测试文件在 `tests/` 下，需手动 `sys.path.insert` 指向 `pancake/` 目录。
 
 ### 运行
 

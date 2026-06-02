@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pancake Framework 启动配置
+  管理插件加载、插件参数和全局配置
+
+  插件加载顺序按 init-order 从小到大排列
+  禁用插件: enabled="false"（装饰器仍会加载，仅跳过 Main 类初始化）
+  外部插件: source 填写 pip 包的模块路径，如 source="my_package.plugin"
+-->
+<pancake>
+
+  <plugins>
+    <!-- 嵌入插件：将框架 API 注入 builtins，最先加载 -->
+    <plugin name="embed" source="ovenware.embed" init-order="-10"/>
+
+    <!-- MyBatis Plus ORM：数据持久化层 -->
+    <plugin name="mybatis" source="ovenware.mybatis" init-order="1">
+      <config>
+        <property name="mybatis.database.url" value="sqlite:///resource/db/app.db"/>
+        <property name="mybatis.database.min_size" value="1"/>
+        <property name="mybatis.database.max_size" value="5"/>
+      </config>
+    </plugin>
+
+    <!-- Web 服务：FastAPI HTTP 服务器 -->
+    <plugin name="web" source="ovenware.web" init-order="10">
+      <config>
+        <property name="service.title" value="Pancake Web Service"/>
+        <property name="service.version" value="0.1.0"/>
+        <property name="service.host" value="127.0.0.1"/>
+        <property name="service.port" value="8080"/>
+      </config>
+    </plugin>
+
+    <!-- 自动注入装饰器（无 Main 类，仅注册装饰器） -->
+    <plugin name="auto_inject" source="ovenware.auto_inject"/>
+
+    <!-- Service 装饰器（无 Main 类，仅注册装饰器） -->
+    <plugin name="base" source="ovenware.base"/>
+
+    <!-- 外部插件加载器 -->
+    <plugin name="external_plugin" source="ovenware.external_plugin" enabled="false"/>
+
+    <!-- LangGraph AI 工作流（默认禁用，需要时启用） -->
+    <plugin name="langgraph" source="ovenware.langgraph" enabled="false"/>
+
+    <!-- ===== 外部插件示例 ===== -->
+    <!-- 安装 pip 包后，取消注释即可启用 -->
+    <!-- <plugin name="my-addon" source="my_addon.plugin" init-order="50"/> -->
+  </plugins>
+
+  <!-- 全局配置（优先级高于 YAML） -->
+  <config>
+    <!-- <property name="log.level" value="INFO"/> -->
+    <!-- <property name="log.file" value="framework.log"/> -->
+  </config>
+
+</pancake>

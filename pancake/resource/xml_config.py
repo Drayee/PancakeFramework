@@ -111,10 +111,17 @@ def load_xml(xml_path: str = None) -> dict:
 
     result = {"plugins": [], "config": {}}
 
-    # 解析全局 <config>
-    global_config = root.find("config")
+    # 解析全局配置：支持 <config> 和 <global> 两种写法
+    global_config = root.find("config") or root.find("global")
     if global_config is not None:
         result["config"] = _parse_properties(global_config)
+        # 支持直接子元素格式：<service.title>xxx</service.title>
+        for child in global_config:
+            if child.tag != "property" and child.text and child.text.strip():
+                key = child.tag
+                value = child.text.strip()
+                value = _resolve_env_vars(value)
+                result["config"][key] = _auto_convert(value)
 
     # 解析 <plugins>
     plugins_elem = root.find("plugins")
@@ -125,9 +132,12 @@ def load_xml(xml_path: str = None) -> dict:
     for plugin_elem in plugins_elem.findall("plugin"):
         name = plugin_elem.get("name")
         source = plugin_elem.get("source")
-        if not name or not source:
-            logger.warning("Plugin missing name or source, skipping")
+        if not name:
+            logger.warning("Plugin missing name, skipping")
             continue
+        if not source:
+            # 从 name 推导 source，如 "web" -> "ovenware.web"
+            source = f"ovenware.{name}"
 
         # 解析属性
         init_order = int(plugin_elem.get("init-order", "0"))

@@ -6,7 +6,7 @@ Langgraph 核心引擎
 import functools
 import inspect
 import logging
-import oven
+from pancake import oven
 
 from ..auto_inject import _get_param_types
 

@@ -4,9 +4,17 @@ import os
 disable_check = []
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(current_dir)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+_initialized = False
 
 def init():
+    global _initialized
+    if _initialized:
+        return
+    _initialized = True
+
     import initialize
     initialize.print_ico()
 
@@ -14,7 +22,6 @@ def init():
                  "check_struct":initialize.check_struct, # 检查项目结构完整性
                 }
 
-    os.chdir(os.sep.join(current_dir.split(os.sep)[:-1]))
     # 检查运行环境
     print("检查运行环境")
     import tool
@@ -26,13 +33,14 @@ def init():
         progress.update(1, f"{task} 完成")
 
     progress.finish()
-    os.chdir(os.sep.join(current_dir.split(os.sep)[:-1] + ["src"]))
 
-init()
+    # 初始化 dotenv 和 logging
+    from resource import config  # noqa: F401
+    import resource.logging as resource_logging  # noqa: F401
 
-# 资源库(系统) - env
-from resource import config
-import resource.logging as resource_logging
-import logging as std_logging
 
-from .run import run
+# 延迟导入，避免循环依赖
+def run():
+    init()
+    from .run import run as _run
+    _run()

@@ -1,9 +1,10 @@
 [tool.poetry]
-name = "framework"
+name = "pancake"
 version = "0.1.0"
-description = "Pancake - Decorator-driven Python web framework"
+description = "Pancake - Decorator-driven Python web framework with IoC, MyBatis ORM, and AI workflow"
 authors = ["drayee <1473443474@qq.com>"]
 readme = "README.md"
+packages = [{include = "pancake"}]
 
 [tool.poetry.dependencies]
 python = "^3.13"
@@ -30,6 +31,9 @@ http = ["aiohttp"]
 grpc = ["grpcio"]
 redis = ["redis"]
 all = ["langgraph", "websocket-client", "aiohttp", "grpcio", "redis"]
+
+[tool.poetry.scripts]
+pancake = "pancake.cli:main"
 
 [build-system]
 requires = ["poetry-core"]

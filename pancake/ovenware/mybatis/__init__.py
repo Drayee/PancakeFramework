@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # 装饰器定义在子模块中，load_dlc 的 __module__ 过滤无法识别，需手动注册到 muffin_flour
 # embed.py 会自动将 muffin_flour 中的所有项注入 builtins
-import oven
+from pancake import oven
 oven.muffin_flour["Mapper"] = Mapper
 oven.muffin_flour["BaseMapper"] = BaseMapper
 oven.muffin_flour["Select"] = Select
@@ -51,7 +51,7 @@ class Main(InitAction):
 
     @staticmethod
     def check():
-        import oven
+        from pancake import oven
         url = oven.pancake_yaml.get("mybatis.database.url")
         if url is None:
             logger.warning("未配置 mybatis.database.url，使用默认 SQLite")

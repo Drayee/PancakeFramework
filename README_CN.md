@@ -7,68 +7,67 @@
 ## 特性
 
 - **装饰器驱动** - 用简单装饰器注册服务、控制器和 Mapper
+- **CLI 命令行工具** - `pancake create/run/check/build` 管理项目
 - **自动依赖注入** - `@auto_inject()` 自动从 YAML/JSON 配置解析参数
-- **MyBatis Plus ORM** - 异步 ORM，内置 `BaseMapper` CRUD、`@Select`/`@Insert` SQL 注解、动态 SQL（`<if>`、`<foreach>`、`<where>`）
+- **MyBatis Plus ORM** - 异步 ORM，内置 CRUD、SQL 注解、动态 SQL
 - **FastAPI Web 服务** - 内置 `@get_controller`/`@post_controller` 装饰器
 - **IoC 容器** - 支持单例、瞬态和作用域的依赖管理
 - **LangGraph 集成** - AI 工作流节点、边和状态图
 - **消息队列** - 内存 `SimpleBroker` 和 `RedisBroker` 事件驱动架构
-- **生命周期管理** - 服务的 `on_init`、`on_start`、`on_stop` 钩子
-- **插件系统** - 从目录或环境变量配置的路径加载外部插件
-- **YAML 配置** - 嵌套 YAML 支持 `${占位符}` 解析，扁平化 key 访问
+- **插件系统** - XML 统一管理插件加载、顺序和配置
+- **集中配置管理** - `settings.py` 统一管理路径和配置，支持用户自定义
 
 ## 快速开始
-
-### 环境要求
-
-- Python 3.13+
-- Poetry（如未安装会自动安装）
 
 ### 安装
 
 ```bash
-# 克隆项目
-git clone <repo-url>
-cd framework
+pip install pancake
+```
 
-# 安装依赖
-poetry install
+### 创建项目
 
-# 运行
-poetry run python main.py
+```bash
+pancake create myapp
+cd myapp
+```
+
+### 运行
+
+```bash
+# 使用 CLI
+pancake run
+
+# 或使用 Python
+python main.py
 ```
 
 服务默认启动在 `http://127.0.0.1:8080`。
 
+### CLI 命令
+
+| 命令 | 说明 |
+|------|------|
+| `pancake create <名称>` | 创建新项目，生成标准目录结构 |
+| `pancake run` | 运行项目 |
+| `pancake check` | 检查项目结构和环境 |
+| `pancake build` | 打包项目为 wheel |
+
 ### 项目结构
 
+执行 `pancake create myapp` 后：
+
 ```
-framework/
-├── main.py                  # 入口文件
-├── pyproject.toml           # 依赖配置
-├── framework/               # 框架核心
-│   ├── __init__.py          # 引导和初始化
-│   ├── run.py               # 启动流水线
-│   ├── oven/                # 全局注册表 (pancake_*, muffin_*)
-│   ├── ovenware/            # 内置插件
-│   │   ├── base.py          # @Service 装饰器
-│   │   ├── auto_inject.py   # @auto_inject 装饰器
-│   │   ├── web.py           # FastAPI Web 服务
-│   │   ├── embed.py         # builtins 注入
-│   │   ├── mybatis/         # ORM 模块
-│   │   └── langgraph/       # AI 工作流模块
-│   ├── build/               # 插件加载和构建流水线
-│   ├── initialize/          # 环境和结构检查
-│   ├── resource/            # 配置加载器（YAML、JSON、日志）
-│   └── tool/                # 工具类（ProgressBar）
-└── src/                     # 用户代码
+myapp/
+├── main.py              # 入口：import pancake; pancake.run()
+├── pancake.xml          # 插件和配置管理
+├── pyproject.toml       # 依赖配置
+└── src/
     ├── resource/
-    │   ├── yaml/            # YAML 配置文件
-    │   ├── json/            # JSON 配置文件
-    │   └── db/              # SQLite 数据库
-    ├── mapper/              # 数据访问层
-    ├── controller.py        # Web 控制器
-    └── demo_*.py            # 功能演示
+    │   ├── yaml/        # YAML 配置文件
+    │   └── db/          # SQLite 数据库
+    ├── mapper/          # 数据访问层
+    └── controller/      # Web 控制器
 ```
 
 ## 使用方法
@@ -103,20 +102,15 @@ class UserMapper(BaseMapper):
     async def find_by_name(self, name: str) -> list[User]: ...
 ```
 
-内置 CRUD 方法：`select_by_id`、`select_list`、`select_one`、`select_count`、`insert`、`insert_batch`、`update_by_id`、`delete_by_id`。
+内置 CRUD：`select_by_id`、`select_list`、`select_one`、`select_count`、`insert`、`insert_batch`、`update_by_id`、`delete_by_id`。
 
 链式查询：
 
 ```python
-from ovenware.mybatis.wrapper import qw, uw
+from pancake.ovenware.mybatis.wrapper import qw, uw
 
-# 查询
 users = await mapper.select(qw().ge("age", 18).like("name", "%Ali%").orderByDesc("age").limit(50))
-
-# 更新
 await mapper.update(uw().set("name", "Bob").eq("id", 1))
-
-# 删除
 await mapper.delete(qw().lt("age", 18))
 ```
 
@@ -127,8 +121,7 @@ await mapper.delete(qw().lt("age", 18))
 def get_config(service_title: str, service_port: int):
     return {"title": service_title, "port": service_port}
 
-# 参数自动从 YAML 配置解析 (service.title -> service_title)
-get_config()  # {"title": "Pancake Web Service", "port": 8080}
+get_config()  # {"title": "我的应用", "port": 8080}
 ```
 
 ### IoC 容器
@@ -164,67 +157,82 @@ class MyService(Lifecycle):
         await self.cleanup()
 ```
 
-### YAML 配置
+## 配置
 
-在 `src/resource/yaml/` 目录下创建 YAML 文件：
+### XML 启动配置 (`pancake.xml`)
 
-```yaml
-service:
-  title: "我的应用"
-  version: "1.0.0"
-  host: "0.0.0.0"
-  port: 3000
-
-mybatis:
-  database:
-    url: "sqlite:///resource/db/app.db"
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<pancake>
+  <global>
+    <service.title>我的应用</service.title>
+    <service.version>1.0.0</service.version>
+    <service.host>0.0.0.0</service.host>
+    <service.port>3000</service.port>
+    <paths.yaml_dir>config/yml</paths.yaml_dir>
+  </global>
+  <plugins>
+    <plugin name="embed" init-order="0"/>
+    <plugin name="mybatis" init-order="1"/>
+    <plugin name="web" init-order="2"/>
+    <plugin name="langgraph" enabled="false"/>
+  </plugins>
+</pancake>
 ```
 
-使用扁平化 key 访问：`service.title`、`mybatis.database.url`。支持 `${占位符}` 引用。
+- **`<global>`**：配置值合并到 YAML（XML 优先级高于 YAML）
+- **`<plugin name="...">`**：省略 `source` 时自动推导为 `ovenware.<name>`
+- **`init-order`**：加载顺序，数值越小越先加载（默认 0）
+- **`enabled="false"`**：跳过插件初始化，但装饰器仍然加载
+- **`${env:VAR_NAME}`**：引用环境变量
 
-### 禁用插件
+### 路径配置
 
-在任意 YAML 文件中配置：
+所有路径可通过 `pancake.xml` 或 YAML 自定义：
 
-```yaml
-framework:
-  disable_dlc:
-    - langgraph
-    - external_plugin
+| 配置键 | 默认值 | 说明 |
+|--------|--------|------|
+| `paths.src_dir` | `src` | 用户代码根目录 |
+| `paths.yaml_dir` | `src/resource/yaml` | YAML 配置目录 |
+| `paths.json_dir` | `src/resource/json` | JSON 配置目录 |
+| `paths.mapper_dir` | `src/mapper` | Mapper 目录 |
+| `paths.controller_dir` | `src/controller` | 控制器目录 |
+| `paths.db_dir` | `src/resource/db` | 数据库目录 |
+
+### 服务和数据库配置
+
+| 配置键 | 默认值 | 说明 |
+|--------|--------|------|
+| `service.title` | `Pancake App` | 应用名称 |
+| `service.version` | `1.0.0` | 应用版本 |
+| `service.host` | `127.0.0.1` | 绑定地址 |
+| `service.port` | `8080` | 绑定端口 |
+| `mybatis.database.url` | `sqlite:///...` | 数据库连接 URL |
+| `mybatis.database.min_size` | `1` | 连接池最小值 |
+| `mybatis.database.max_size` | `5` | 连接池最大值 |
+
+### 环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `LOG_FILE` | 日志文件路径 |
+| `EXTERNAL_PLUGIN_DIRS` | 外部插件路径（`;` 或 `:` 分隔） |
+| `PANCAKE_AUTO_INSTALL` | 自动安装缺失依赖 |
+
+## 可选依赖
+
+```bash
+pip install pancake[langgraph]   # LangGraph AI 工作流
+pip install pancake[grpc]        # gRPC 远程调用
+pip install pancake[redis]       # Redis 消息队列
+pip install pancake[all]         # 全部可选依赖
 ```
-
-## 配置项
-
-| 配置键 | 说明 | 默认值 |
-|--------|------|--------|
-| `service.title` | 应用名称 | - |
-| `service.version` | 应用版本 | - |
-| `service.host` | 绑定地址 | `127.0.0.1` |
-| `service.port` | 绑定端口 | `8080` |
-| `mybatis.database.url` | 数据库连接 URL | `sqlite:///resource/db/app.db` |
-| `mybatis.database.min_size` | 连接池最小值 | `1` |
-| `mybatis.database.max_size` | 连接池最大值 | `5` |
-| `framework.disable_dlc` | 禁用的插件列表 | `[]` |
-| `LOG_FILE` | 日志文件路径（环境变量） | `framework.log` |
-| `EXTERNAL_PLUGIN_DIRS` | 外部插件路径（环境变量） | - |
-| `PANCAKE_AUTO_INSTALL` | 自动安装依赖（环境变量） | - |
 
 ## 运行测试
 
 ```bash
 pip install pytest pytest-asyncio
 python -m pytest tests/ -v
-```
-
-## 可选依赖
-
-核心依赖已包含在默认安装中。如需额外功能，可通过 extras 安装：
-
-```bash
-pip install framework[langgraph]   # LangGraph AI 工作流
-pip install framework[grpc]        # gRPC 远程调用
-pip install framework[redis]       # Redis 消息队列
-pip install framework[all]         # 全部可选依赖
 ```
 
 ## 开源协议

@@ -10,7 +10,7 @@ import logging
 from typing import Any, Callable, Optional
 from contextlib import asynccontextmanager
 
-import oven
+from pancake import oven
 
 logger = logging.getLogger(__name__)
 

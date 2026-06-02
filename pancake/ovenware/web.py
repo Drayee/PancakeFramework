@@ -8,15 +8,17 @@
 from fastapi import FastAPI
 import uvicorn
 import logging
-import oven
+from pancake import oven
 
 logger = logging.getLogger(__name__)
 
 # 检查服务配置文件是否存在
 def _check():
     import os
-    yaml_path = os.path.join("resource", "yaml", "service.yaml")
-    yml_path = os.path.join("resource", "yaml", "service.yml")
+    from pancake.settings import get_path
+    yaml_dir = get_path("yaml_dir")
+    yaml_path = os.path.join(yaml_dir, "service.yaml")
+    yml_path = os.path.join(yaml_dir, "service.yml")
     if not os.path.exists(yaml_path) and not os.path.exists(yml_path):
         logger.error("service.yaml 或 service.yml 文件不存在")
         raise FileNotFoundError("service.yaml 或 service.yml 文件不存在")

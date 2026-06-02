@@ -1,3 +1,3 @@
-import framework
+import pancake
 
-framework.run()
+pancake.run()
