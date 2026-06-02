@@ -6,23 +6,33 @@
 
 ## Features
 
+- **Zero Import** - All decorators and services auto-injected into builtins, no import needed
 - **Decorator-Driven** - Register services, controllers, and mappers with simple decorators
 - **CLI Tool** - `pancake create/run/check/build` commands for project management
 - **Auto Dependency Injection** - `@auto_inject()` automatically resolves parameters from YAML/JSON config
-- **MyBatis Plus ORM** - Async ORM with `BaseMapper` CRUD, `@Select`/`@Insert` SQL annotations, dynamic SQL
-- **FastAPI Web Server** - Built-in `@get_controller`/`@post_controller` decorators
 - **IoC Container** - Singleton, transient, and scoped dependency management
+- **MyBatis Plus ORM** - Async ORM with `BaseMapper` CRUD, `@Select`/`@Insert` SQL annotations, dynamic SQL, chain queries
+- **Multi-Database** - SQLite / PostgreSQL / MySQL with auto-detection
+- **FastAPI Web Server** - Built-in `@get_controller`/`@post_controller` and all HTTP methods
+- **Auth & Authorization** - `@auth_required`, `@role_required`, pluggable auth handlers
+- **Middleware & Validation** - `@middleware`, `@validate`, `@transaction` decorators
+- **AI Module** - Unified LLM client (OpenAI/DeepSeek/Gemini/Ollama), short-term & long-term memory, RAG
 - **LangGraph Integration** - AI workflow nodes, edges, and state graphs
+- **Redis Cache** - `@cached` decorator with anti-penetration/avalanche/breakdown protection
 - **Message Queue** - In-memory `SimpleBroker` and `RedisBroker` for event-driven architecture
-- **Plugin System** - XML-managed plugin loading with init-order control
-- **Centralized Settings** - All paths and configs managed through `settings.py`, fully user-customizable
+- **Remote Calls** - `@remote_node` for HTTP and gRPC remote invocation
+- **Lifecycle Management** - `Lifecycle` base class with init/start/stop/error hooks
+- **CUI** - Click-based CLI command registration with `@cui_command`
+- **GUI** - Flet (Flutter) based GUI page registration with `@gui_page`
+- **Plugin System** - Auto-discovery with init-order control, external plugin dirs
+- **Centralized Settings** - All paths and configs managed through `settings.py`
 
 ## Quick Start
 
 ### Install
 
 ```bash
-pip install pancake
+pip install pancake_framework
 ```
 
 ### Create a Project
@@ -42,7 +52,7 @@ pancake run
 python main.py
 ```
 
-The server starts at `http://127.0.0.1:8080` by default.
+The server starts at `http://127.0.0.1:8080` by default. Health check at `/health`.
 
 ### CLI Commands
 
@@ -53,26 +63,9 @@ The server starts at `http://127.0.0.1:8080` by default.
 | `pancake check` | Check project structure and environment |
 | `pancake build` | Package project as wheel |
 
-### Project Structure
-
-After `pancake create myapp`:
-
-```
-myapp/
-├── main.py              # Entry point: import pancake; pancake.run()
-├── pancake.xml          # Plugin & config management
-├── pyproject.toml       # Dependencies
-└── src/
-    ├── resource/
-    │   ├── yaml/        # YAML config files
-    │   └── db/          # SQLite database
-    ├── mapper/          # Data access layer
-    └── controller/      # Web controllers
-```
-
 ## Usage
 
-### Web Controller
+### Web Controller (no import needed)
 
 ```python
 @get_controller("/hello")
@@ -80,11 +73,49 @@ def hello():
     return {"message": "Hello from Pancake!"}
 
 @post_controller("/users")
-async def create_user(name: str, age: int, email: str):
-    return {"id": await UserMapper().insert(name=name, age=age, email=email)}
+async def create_user(name: str, age: int):
+    return {"id": await UserMapper().insert(name=name, age=age)}
 ```
 
-### MyBatis Plus ORM
+### Auth & Authorization
+
+```python
+@set_auth_handler
+async def authenticate(request, token):
+    user = await verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401)
+    return user
+
+@get_controller("/profile")
+@auth_required
+async def get_profile(current_user):
+    return {"user": current_user}
+
+@delete_controller("/admin/users/{user_id}")
+@role_required("admin")
+async def delete_user(user_id: int):
+    await UserMapper().delete_by_id(user_id)
+```
+
+### Middleware & Transaction
+
+```python
+@middleware(order=1)
+async def log_request(request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    logger.info(f"{request.method} {request.url.path} {time.time()-start:.3f}s")
+    return response
+
+@post_controller("/transfer")
+@transaction
+async def transfer(from_id: int, to_id: int, amount: float):
+    # All DB operations in this function run in a single transaction
+    ...
+```
+
+### MyBatis Plus ORM (no import needed)
 
 ```python
 @Mapper
@@ -107,28 +138,48 @@ Built-in CRUD: `select_by_id`, `select_list`, `select_one`, `select_count`, `ins
 Chain queries:
 
 ```python
-from pancake.ovenware.mybatis.wrapper import qw, uw
-
-users = await mapper.select(qw().ge("age", 18).like("name", "%Ali%").orderByDesc("age").limit(50))
+users = await mapper.select(qw().ge("age", 18).like("name", "%Ali%").order_by_desc("age").limit(50))
 await mapper.update(uw().set("name", "Bob").eq("id", 1))
 await mapper.delete(qw().lt("age", 18))
 ```
 
-### Auto Dependency Injection
+### AI Module (no import needed)
+
+Configure `src/resource/yaml/ai.yaml`, then use directly:
 
 ```python
-@auto_inject()
-def get_config(service_title: str, service_port: int):
-    return {"title": service_title, "port": service_port}
+# Chat
+response = await chat_model.chat([{"role": "user", "content": "Hello"}])
 
-get_config()  # {"title": "My App", "port": 8080}
+# Stream
+async for chunk in chat_model.chat_stream([...]):
+    print(chunk, end="")
+
+# Short-term memory (session context)
+await short_term_memory.add("session_001", "user", "My name is Alice")
+messages = await short_term_memory.get_messages("session_001")
+
+# Long-term memory (persistent)
+await long_term_memory.remember("user_name", "Alice")
+name = await long_term_memory.recall("user_name")
+
+# RAG
+await rag.add_document("Pancake is a Python framework...")
+answer = await rag.ask("What is Pancake?")
 ```
 
-### IoC Container
+Supported providers: OpenAI, DeepSeek, Gemini, Ollama, GLM, Moonshot, Qwen, vLLM.
+
+### Redis Cache
 
 ```python
-container.register(UserService, UserService, Scope.SINGLETON)
-service = container.resolve(UserService)
+@cached(ttl=300)
+async def get_user(user_id: int):
+    return await db.query(user_id)
+
+# CacheGuard with anti-penetration/avalanche/breakdown
+guard = CacheGuard(redis_client)
+user = await guard.get_or_load("user:123", lambda: db.query(123), ttl=600, jitter=60)
 ```
 
 ### Event-Driven Messaging
@@ -157,76 +208,47 @@ class MyService(Lifecycle):
         await self.cleanup()
 ```
 
-## Configuration
+### CUI (CLI Commands)
 
-### XML Startup Config (`pancake.xml`)
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<pancake>
-  <global>
-    <service.title>My App</service.title>
-    <service.version>1.0.0</service.version>
-    <service.host>0.0.0.0</service.host>
-    <service.port>3000</service.port>
-    <paths.yaml_dir>config/yml</paths.yaml_dir>
-  </global>
-  <plugins>
-    <plugin name="embed" init-order="0"/>
-    <plugin name="mybatis" init-order="1"/>
-    <plugin name="web" init-order="2"/>
-    <plugin name="langgraph" enabled="false"/>
-  </plugins>
-</pancake>
+```python
+@cui_command("greet", help="Say hello")
+@cui_option("--name", "-n", default="World", help="Name")
+def greet(name: str):
+    click.echo(f"Hello, {name}!")
 ```
 
-- **`<global>`**: Config values merged into YAML config (XML takes priority)
-- **`<plugin name="...">`**: `source` auto-derived as `ovenware.<name>` if omitted
-- **`init-order`**: Lower loads first (default: 0)
-- **`enabled="false"`**: Skip plugin init but still load decorators
-- **`${env:VAR_NAME}`**: Resolved from environment variables
+### GUI (Flet/Flutter)
 
-### Path Configuration
-
-All paths are configurable via `pancake.xml` or YAML:
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `paths.src_dir` | `src` | User code root |
-| `paths.yaml_dir` | `src/resource/yaml` | YAML config directory |
-| `paths.json_dir` | `src/resource/json` | JSON config directory |
-| `paths.mapper_dir` | `src/mapper` | Mapper directory |
-| `paths.controller_dir` | `src/controller` | Controller directory |
-| `paths.db_dir` | `src/resource/db` | Database directory |
-
-### Service & Database Config
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `service.title` | `Pancake App` | App name |
-| `service.version` | `1.0.0` | App version |
-| `service.host` | `127.0.0.1` | Bind host |
-| `service.port` | `8080` | Bind port |
-| `mybatis.database.url` | `sqlite:///...` | Database URL |
-| `mybatis.database.min_size` | `1` | Connection pool min |
-| `mybatis.database.max_size` | `5` | Connection pool max |
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `LOG_FILE` | Log file path |
-| `EXTERNAL_PLUGIN_DIRS` | External plugin paths (`;` or `:` separated) |
-| `PANCAKE_AUTO_INSTALL` | Auto-install missing dependencies |
+```python
+@gui_page("/", title="Home")
+def home(page: ft.Page):
+    page.add(ft.Text("Welcome to Pancake GUI"))
+```
 
 ## Optional Dependencies
 
 ```bash
-pip install pancake[langgraph]   # LangGraph AI workflow
-pip install pancake[grpc]        # gRPC remote calls
-pip install pancake[redis]       # Redis message queue
-pip install pancake[all]         # All optional deps
+pip install pancake_framework[ai]          # AI module (OpenAI, Gemini, etc.)
+pip install pancake_framework[langgraph]   # LangGraph AI workflow
+pip install pancake_framework[redis]       # Redis cache and message queue
+pip install pancake_framework[grpc]        # gRPC remote calls
+pip install pancake_framework[cui]         # Click CLI commands
+pip install pancake_framework[gui]         # Flet GUI
+pip install pancake_framework[all]         # All optional deps
 ```
+
+## TODO
+
+- [ ] Database migration support
+- [ ] Configuration hot-reload
+- [ ] Pagination `Page` object abstraction
+- [ ] OpenTelemetry / metrics integration
+- [ ] Graceful shutdown with signal handling
+- [ ] WebSocket support
+- [ ] Rate limiting middleware
+- [ ] API documentation auto-generation
+- [ ] More database dialects (SQLite/PG/MySQL type mapping)
+- [ ] Connection pool health check and auto-reconnect
 
 ## Running Tests
 
