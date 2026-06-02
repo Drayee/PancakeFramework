@@ -1,3 +1,0 @@
-import pancake
-
-pancake.run()
