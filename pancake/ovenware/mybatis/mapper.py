@@ -140,37 +140,34 @@ class BaseMapper:
         bool: "INTEGER",
     }
 
-    def _auto_increment_sql(self) -> str:
-        """根据数据库类型返回自增 SQL 片段"""
+    def _get_dialect(self):
+        """获取当前数据库方言"""
         from .connection import _manager
+        from .dialect import get_dialect
         db = _manager._database
         if db is None:
-            return "AUTOINCREMENT"
-        url = str(db.url)
-        if url.startswith("postgresql") or url.startswith("postgres"):
-            return "SERIAL"
-        if url.startswith("mysql") or url.startswith("mariadb"):
-            return "AUTO_INCREMENT"
-        return "AUTOINCREMENT"
+            from .dialect import SQLiteDialect
+            return SQLiteDialect()
+        return get_dialect(str(db.url))
 
     async def create_table(self) -> None:
         """根据 _entity_class 的 dataclass 字段自动建表"""
         if self._entity_class is None or not is_dataclass(self._entity_class):
             raise ValueError(f"{self.__class__.__name__} 未定义 _entity_class 或不是 dataclass")
         db = get_database()
-        auto_inc = self._auto_increment_sql()
+        dialect = self._get_dialect()
+        auto_inc = dialect.auto_increment()
         cols = []
         for f in fields(self._entity_class):
-            col_type = self._TYPE_MAP.get(f.type, "TEXT")
+            col_type = dialect.TYPE_MAP.get(f.type, "TEXT")
             if f.name == "id":
                 if auto_inc == "SERIAL":
-                    cols.append(f"    {f.name} SERIAL PRIMARY KEY")
+                    cols.append(f"    {dialect.quote(f.name)} SERIAL PRIMARY KEY")
                 else:
-                    cols.append(f"    {f.name} {col_type} PRIMARY KEY {auto_inc}")
+                    cols.append(f"    {dialect.quote(f.name)} {col_type} PRIMARY KEY {auto_inc}")
             else:
-                cols.append(f"    {f.name} {col_type}")
-        col_sql = ",\n".join(cols)
-        sql = f"CREATE TABLE IF NOT EXISTS {self._table_name} (\n{col_sql}\n)"
+                cols.append(f"    {dialect.quote(f.name)} {col_type}")
+        sql = dialect.create_table_sql(self._table_name, cols)
         await db.execute(query=sql)
         logger.info(f"表 {self._table_name} 已创建")
 

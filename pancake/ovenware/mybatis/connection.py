@@ -24,9 +24,14 @@ class DatabaseManager:
 
     def __init__(self):
         self._database: Database | None = None
+        self._url: str | None = None
+        self._kwargs: dict = {}
 
     async def init(self, url: str, **kwargs) -> Database:
         """初始化数据库连接"""
+        self._url = url
+        self._kwargs = kwargs.copy()
+
         # SQLite: 确保目录存在，不传连接池参数
         if url.startswith("sqlite"):
             db_path = url.replace("sqlite:///", "")
@@ -39,6 +44,35 @@ class DatabaseManager:
         self._database = Database(url, **kwargs)
         await self._database.connect()
         logger.info(f"数据库已连接: {url.split('@')[-1] if '@' in url else url}")
+        return self._database
+
+    async def ping(self) -> bool:
+        """健康检查 — 测试数据库连接是否可用"""
+        if self._database is None:
+            return False
+        try:
+            await self._database.execute("SELECT 1")
+            return True
+        except Exception as e:
+            logger.warning(f"数据库健康检查失败: {e}")
+            return False
+
+    async def reconnect(self) -> Database:
+        """自动重连 — 断开旧连接并重新建立"""
+        if self._url is None:
+            raise RuntimeError("数据库未初始化，无法重连")
+        logger.info("正在重新连接数据库...")
+        await self.close()
+        return await self.init(self._url, **self._kwargs)
+
+    async def get_or_reconnect(self) -> Database:
+        """获取连接，如果断开则自动重连"""
+        if self._database is None:
+            if self._url is None:
+                raise RuntimeError("数据库未初始化，请先调用 init_database()")
+            return await self.reconnect()
+        if not await self.ping():
+            return await self.reconnect()
         return self._database
 
     async def close(self) -> None:
@@ -71,6 +105,8 @@ _manager = DatabaseManager()
 init_database = _manager.init
 close_database = _manager.close
 get_database = _manager.get
+ping_database = _manager.ping
+reconnect_database = _manager.reconnect
 
 
 def create_manager() -> DatabaseManager:

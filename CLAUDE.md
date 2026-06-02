@@ -28,7 +28,7 @@ pancake/                    # 框架核心
 ├── ovenware/               # 插件模块 (自动发现加载)
 │   ├── base.py             # @Service 装饰器
 │   ├── inject.py           # 统一依赖注入: IoCContainer + @auto_inject + @inject
-│   ├── web.py              # FastAPI: @get_controller / @post_controller
+│   ├── web.py              # FastAPI: @get_controller / @post_controller / @websocket_controller
 │   ├── embed.py            # builtins 注入 (init_order=-10, 最先加载)
 │   ├── broker.py           # 消息队列: @event_node / @on_event, SimpleBroker / RedisBroker
 │   ├── lifecycle.py        # 生命周期: Lifecycle 基类, @lifecycle_node, LifecycleManager
@@ -41,6 +41,8 @@ pancake/                    # 框架核心
 │   │   ├── wrapper.py      # QueryWrapper / UpdateWrapper 链式查询
 │   │   ├── sql_parser.py   # #{param} 绑定 + 动态 SQL (<if>/<where>/<set>/<foreach>/<choose>)
 │   │   ├── connection.py   # 异步数据库连接管理 (databases 库)
+│   │   ├── dialect.py      # 数据库方言: SQLite/PostgreSQL/MySQL 类型映射
+│   │   ├── migration.py    # 数据库迁移工具: 版本管理、自动迁移
 │   │   └── config.py       # mybatis 配置加载
 │   └── langgraph/          # AI 工作流核心
 │       └── core.py         # @langgraph_node / @langgraph_edge
@@ -58,6 +60,7 @@ pancake/                    # 框架核心
 │   ├── yml.py              # YAML 加载 + ${占位符} 解析 + 扁平化 key
 │   ├── json.py             # JSON 加载
 │   ├── config.py           # dotenv 加载
+│   ├── config_watcher.py   # 配置热重载 (文件变更监听)
 │   └── logging.py          # 日志配置
 └── tool/
     └── progress_show.py    # 进度条工具
