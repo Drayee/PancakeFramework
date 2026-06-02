@@ -13,7 +13,7 @@ Pancake 是一个全栈 Python 框架，核心理念是"零 import"——通过 
 - FastAPI + Uvicorn (Web 服务)
 - databases + aiosqlite (异步 ORM)
 - PyYAML + python-dotenv (配置)
-- 可选: LangGraph、gRPC、Redis、aiohttp
+- 可选: LangGraph、gRPC、Redis、aiohttp、OpenAI、Gemini、ChromaDB
 
 ## 项目结构
 
@@ -33,6 +33,8 @@ pancake/                    # 框架核心
 │   ├── broker.py           # 消息队列: @event_node / @on_event, SimpleBroker / RedisBroker
 │   ├── lifecycle.py        # 生命周期: Lifecycle 基类, @lifecycle_node, LifecycleManager
 │   ├── remote.py           # 远程调用: @remote_node, HttpRemote / GrpcRemote
+│   ├── redis_cache.py      # Redis 缓存: @cached, CacheGuard（防穿透/雪崩/击穿）
+│   ├── ai_model.py         # AI 模块: ChatModel, ShortTermMemory, LongTermMemory, RAG
 │   ├── external_plugin.py  # 外部插件加载 (EXTERNAL_PLUGIN_DIRS 环境变量)
 │   ├── mybatis/            # MyBatis Plus ORM
 │   │   ├── mapper.py       # @Mapper, BaseMapper, @Select/@Insert/@Update/@Delete
@@ -142,6 +144,37 @@ service = container.resolve(UserService)
 def get_config(service_title: str, service_port: int):
     return {"title": service_title, "port": service_port}
 ```
+
+### AI 模块 (无需 import)
+
+配置 `src/resource/yaml/ai.yaml` 后直接使用：
+
+```python
+# 对话
+response = await chat_model.chat([{"role": "user", "content": "你好"}])
+
+# 指定模型
+response = await chat_model.chat([...], model="gemini")
+
+# 流式输出
+async for chunk in chat_model.chat_stream([...]):
+    print(chunk, end="")
+
+# 短期记忆（对话上下文）
+short_term_memory.add("user", "我叫小明")
+short_term_memory.add("assistant", "你好小明！")
+messages = short_term_memory.get_messages()
+
+# 长期记忆（持久化存储）
+await long_term_memory.remember("user_name", "小明")
+name = await long_term_memory.recall("user_name")
+
+# RAG 问答
+await rag.add_document("Pancake 是一个 Python 框架...")
+answer = await rag.ask("什么是 Pancake？")
+```
+
+支持的模型提供商：OpenAI、DeepSeek、Gemini、Ollama、智谱 GLM、Moonshot、Qwen、vLLM
 
 ## 开发规范
 
