@@ -17,7 +17,8 @@ def pancake_default_before():
     })
     from pancake.resource import json, yml
     oven.pancake_json.update(json.json_init())
-    oven.pancake_yaml.update(yml.yaml_init() | {"framework.disable_dlc": []})
+    oven.pancake_yaml.update(yml.yaml_init())
+    oven.pancake_yaml.setdefault("framework.disable_dlc", [])
 
     # 将 XML 全局配置合并到 pancake_yaml（XML 优先级高于 YAML）
     xml_config = oven.pancake_xml.get("config", {})

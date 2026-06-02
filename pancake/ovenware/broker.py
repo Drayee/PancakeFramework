@@ -35,12 +35,9 @@ class SimpleBroker(MessageBroker):
 
     def __init__(self):
         self._handlers: dict[str, list[Callable]] = defaultdict(list)
-        self._queue: asyncio.Queue = asyncio.Queue()
 
     async def publish(self, topic: str, message: dict) -> None:
-        """发布消息到内存队列"""
-        await self._queue.put({"topic": topic, "data": message})
-        # 立即触发处理
+        """发布消息并立即触发处理"""
         await self._process_message(topic, message)
 
     async def subscribe(self, topic: str, handler: Callable) -> None:
@@ -109,12 +106,15 @@ class RedisBroker(MessageBroker):
         while True:
             try:
                 if self._pubsub:
-                    message = await self._pubsub.get_message(ignore_subscribe_messages=True)
+                    message = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                     if message and message["type"] == "message":
                         topic = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
                         data = json.loads(message["data"])
                         await self._process_message(topic, data)
-                await asyncio.sleep(0.01)
+                else:
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 logger.error(f"Redis 监听错误: {e}")
                 await asyncio.sleep(1)

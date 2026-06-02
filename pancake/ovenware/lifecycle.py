@@ -126,11 +126,6 @@ class LifecycleManager:
     async def shutdown_all(self) -> None:
         """关闭所有实例"""
         await self.stop()
-        for name, instance in self._instances.items():
-            try:
-                await instance.on_stop()
-            except Exception as e:
-                logger.error(f"关闭 {name} 失败: {e}")
         self._instances.clear()
         self._initialized.clear()
         self._started.clear()

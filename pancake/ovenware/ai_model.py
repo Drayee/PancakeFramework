@@ -340,6 +340,11 @@ class ChatModel:
             provider_class = _PROVIDER_REGISTRY.get(provider_type)
             if not provider_class:
                 raise ValueError(f"不支持的 provider 类型: {provider_type}")
+            if provider_type != "ollama" and not provider_config.get("api_key"):
+                raise ValueError(
+                    f"AI Provider '{name}' 的 API Key 未配置，"
+                    f"请在 ai.providers.{name}.api_key 或对应环境变量中设置"
+                )
             self._providers[name] = provider_class(provider_config)
             logger.info(f"创建 LLM Provider: {name} ({provider_type})")
         return self._providers[name]

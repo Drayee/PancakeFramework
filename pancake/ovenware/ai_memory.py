@@ -33,6 +33,16 @@ from pancake import oven
 
 logger = logging.getLogger(__name__)
 
+import re as _re
+_IDENTIFIER_RE = _re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _validate_identifier(name: str, kind: str = "identifier") -> str:
+    """校验 SQL 标识符，防注入"""
+    if not _IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid SQL {kind}: {name!r}")
+    return name
+
 
 # ============================================================
 #  记忆存储后端
@@ -177,6 +187,7 @@ class MyBatisBackend(MemoryBackend):
     """
 
     def __init__(self, table_name: str = "ai_memory"):
+        _validate_identifier(table_name, "table")
         self._db = None
         self._table_name = table_name
         self._table_created = False
@@ -433,6 +444,7 @@ class PgVectorBackend(VectorBackend):
         return self._db
 
     async def ensure_collection(self, collection_name: str, dimension: int = 1536) -> None:
+        _validate_identifier(collection_name, "collection")
         if collection_name in self._collections_created:
             return
         db = await self._get_db()
@@ -496,6 +508,7 @@ class PgVectorBackend(VectorBackend):
 
     async def delete(self, ids: list[str] = None, where: dict = None,
                      collection_name: str = "ai_rag") -> None:
+        _validate_identifier(collection_name, "collection")
         db = await self._get_db()
         if ids:
             placeholders = ", ".join(f":id_{i}" for i in range(len(ids)))
@@ -504,6 +517,8 @@ class PgVectorBackend(VectorBackend):
                 f"DELETE FROM {collection_name} WHERE id IN ({placeholders})", values
             )
         elif where:
+            for k in where:
+                _validate_identifier(k, "column")
             conditions = " AND ".join(f"{k} = :{k}" for k in where)
             await db.execute(
                 f"DELETE FROM {collection_name} WHERE {conditions}", where
@@ -738,7 +753,6 @@ def _create_vector_backend(config: dict) -> VectorBackend:
             db=config.get("redis_db", 0),
         )
     elif backend == "mongodb":
-        from .resource.yml import _resolve_env as resolve
         url = config.get("mongo_url", "mongodb://localhost:27017")
         if isinstance(url, str) and url.startswith("${"):
             url = os.environ.get(url[2:-1], "mongodb://localhost:27017")

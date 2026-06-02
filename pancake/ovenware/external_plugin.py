@@ -51,7 +51,7 @@ class Main(InitAction):
         for dir in self.external_plugin_dirs:
             items = load_src.parse_file(dir)
             for decorator_name, obj_type, obj_name, path in items:
-                load_src.safe_register(path, obj_name)
+                load_src.safe_register(path)
 
         logger.info(f"成功加载 {len(items)} 个外部插件")
 

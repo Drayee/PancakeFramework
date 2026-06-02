@@ -107,14 +107,14 @@ def role_required(*roles: str):
         base = auth_required(func) if not getattr(func, "_auth_required", False) else func
 
         @functools.wraps(base)
-        async def wrapper(*args, current_user: Any = Depends(_get_current_user), **kwargs):
+        async def wrapper(*args, request: Request, current_user: Any = Depends(_get_current_user), **kwargs):
             if current_user is None:
                 raise HTTPException(status_code=401, detail="未认证")
             if _role_handler is None:
                 raise HTTPException(status_code=500, detail="未配置角色检查回调，请调用 set_role_handler()")
-            if not await _role_handler(kwargs.get("_request"), current_user, list(roles)):
+            if not await _role_handler(request, current_user, list(roles)):
                 raise HTTPException(status_code=403, detail=f"需要角色: {', '.join(roles)}")
-            return await base(*args, **kwargs)
+            return await base(*args, request=request, **kwargs)
 
         _inject_dependency(wrapper, "current_user", Any, Depends(_get_current_user))
         wrapper._auth_required = True
