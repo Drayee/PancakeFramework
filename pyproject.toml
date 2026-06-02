@@ -28,6 +28,8 @@ google-genai = {version = "^1.0.0", optional = true}
 tiktoken = {version = "^0.7.0", optional = true}
 psycopg2-binary = {version = "^2.9.0", optional = true}
 pymongo = {version = "^4.0.0", optional = true}
+click = {version = "^8.0.0", optional = true}
+flet = {version = "^0.85.0", optional = true}
 
 [tool.poetry.extras]
 langgraph = ["langgraph"]
@@ -36,7 +38,9 @@ http = ["aiohttp"]
 grpc = ["grpcio"]
 redis = ["redis"]
 ai = ["openai", "google-genai", "tiktoken", "psycopg2-binary", "pymongo"]
-all = ["langgraph", "websocket-client", "aiohttp", "grpcio", "redis", "openai", "google-genai", "tiktoken", "psycopg2-binary", "pymongo"]
+cui = ["click"]
+gui = ["flet"]
+all = ["langgraph", "websocket-client", "aiohttp", "grpcio", "redis", "openai", "google-genai", "tiktoken", "psycopg2-binary", "pymongo", "click", "flet"]
 
 [tool.poetry.scripts]
 pancake = "pancake.cli:main"

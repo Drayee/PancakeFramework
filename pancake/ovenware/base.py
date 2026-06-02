@@ -48,3 +48,7 @@ class Service:
     @staticmethod
     def get(cls: str):
         return oven.pancake_pie["Service"][cls]
+
+
+# 注册到 muffin_flour，使其被 embed 自动注入到 builtins
+oven.muffin_flour["Service"] = Service

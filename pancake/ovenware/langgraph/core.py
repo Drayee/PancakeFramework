@@ -14,6 +14,7 @@ import logging
 from typing import Any, Callable, Optional
 
 from pancake import oven
+from pancake.ovenware import check_dependencies
 from ..inject import _get_param_types
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,8 @@ class Main(InitAction):
     """Langgraph 主类 - 构建并编译状态图"""
 
     init_order = 3  # 在 redis 之后，web 之前
+    _dependencies = ["langgraph", "langchain_core"]
+    _extras = "langgraph"
 
     def __init__(self):
         self.app = None
@@ -205,6 +208,10 @@ class Main(InitAction):
         except Exception as e:
             logger.error(f"获取图可视化失败: {e}")
             return None
+
+    @staticmethod
+    def check():
+        check_dependencies(Main._dependencies, Main._extras)
 
     def loop_method(self):
         """运行时钩子"""

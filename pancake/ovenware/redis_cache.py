@@ -58,6 +58,12 @@ class RedisClient:
             await self._redis.close()
             self._redis = None
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     # ============================================================
     #  基础缓存操作
     # ============================================================
@@ -109,11 +115,13 @@ class RedisClient:
         return await conn.decrby(self._key(key), amount)
 
     async def keys(self, pattern: str = "*") -> list[str]:
-        """按模式搜索 key"""
+        """按模式搜索 key（使用 SCAN 避免阻塞）"""
         conn = await self._get_conn()
-        full_keys = await conn.keys(self._key(pattern))
         prefix_len = len(self.key_prefix)
-        return [k[prefix_len:] for k in full_keys]
+        result = []
+        async for k in conn.scan_iter(match=self._key(pattern)):
+            result.append(k[prefix_len:])
+        return result
 
     async def clear_prefix(self, prefix: str) -> int:
         """删除指定前缀的所有 key"""
@@ -365,22 +373,23 @@ class CacheGuard:
         if protect_breakdown:
             # 防击穿：单飞锁
             lock_key = f"_sf:{key}"
-            if lock_key not in _singleflight_locks:
-                _singleflight_locks[lock_key] = asyncio.Lock()
-            lock = _singleflight_locks[lock_key]
+            lock = _singleflight_locks.setdefault(lock_key, asyncio.Lock())
 
-            async with lock:
-                # 双重检查：拿到锁后再查一次
-                data = await self._client.get(key)
-                if data == _NULL_PLACEHOLDER:
-                    return None
-                if data is not None:
-                    return await self._client.get_json(key)
+            try:
+                async with lock:
+                    # 双重检查：拿到锁后再查一次
+                    data = await self._client.get(key)
+                    if data == _NULL_PLACEHOLDER:
+                        return None
+                    if data is not None:
+                        return await self._client.get_json(key)
 
-                # 回源
-                result = await self._call_loader(loader)
-                await self._store(key, result, ttl, null_ttl, jitter)
-                return result
+                    # 回源
+                    result = await self._call_loader(loader)
+                    await self._store(key, result, ttl, null_ttl, jitter)
+                    return result
+            finally:
+                _singleflight_locks.pop(lock_key, None)
         else:
             # 不防击穿，直接回源
             result = await self._call_loader(loader)

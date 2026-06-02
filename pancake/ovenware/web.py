@@ -1,15 +1,18 @@
 """
 Web 服务插件
-提供 Web 服务的构建和运行功能，支持完整 HTTP 方法、认证授权、事务
+提供 Web 服务的构建和运行功能，支持完整 HTTP 方法、认证授权、事务、中间件、参数校验
 """
 
 import functools
 import inspect
 import logging
+import time
 from typing import Any, Callable
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
 from pancake import oven
@@ -155,6 +158,71 @@ def transaction(func: Callable) -> Callable:
 
 
 # ============================================================
+#  中间件 / 拦截器
+# ============================================================
+
+_middleware_registry: list[dict] = []
+
+
+def middleware(order: int = 0):
+    """中间件装饰器 — 注册请求/响应拦截器
+
+    装饰的函数签名为 async def handler(request: Request, call_next) -> Response
+
+    用法:
+        @middleware(order=10)
+        async def log_request(request: Request, call_next):
+            start = time.time()
+            response = await call_next(request)
+            logger.info(f"{request.method} {request.url.path} {time.time()-start:.3f}s")
+            return response
+    """
+    def decorator(func: Callable) -> Callable:
+        _middleware_registry.append({"func": func, "order": order})
+        _middleware_registry.sort(key=lambda x: x["order"])
+        logger.info(f"中间件 {func.__name__} 已注册 (order={order})")
+        return func
+    return decorator
+
+
+# ============================================================
+#  参数校验
+# ============================================================
+
+def validate(**validators: Callable):
+    """参数校验装饰器 — 对控制器参数进行校验
+
+    用法:
+        @post_controller("/users")
+        @validate(age=lambda v: 0 < v < 200, name=lambda v: len(v) > 0)
+        async def create_user(name: str, age: int):
+            ...
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            for param_name, checker in validators.items():
+                if param_name in kwargs:
+                    value = kwargs[param_name]
+                    try:
+                        if not checker(value):
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"参数校验失败: {param_name}={value}"
+                            )
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"参数校验异常: {param_name} — {e}"
+                        )
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# ============================================================
 #  控制器装饰器（统一处理所有 HTTP 方法）
 # ============================================================
 
@@ -236,6 +304,17 @@ class Main(InitAction):
         pass
 
     def build(self):
+        # 注册中间件
+        for mw in _middleware_registry:
+            self.app.add_middleware(BaseHTTPMiddleware, dispatch=mw["func"])
+            logger.info(f"中间件 {mw['func'].__name__} 已挂载")
+
+        # 注册健康检查端点
+        @self.app.get("/health")
+        async def health_check() -> dict:
+            return {"status": "ok", "title": self.service_title, "version": self.service_version}
+
+        # 注册控制器路由
         for method, registry_key in _METHOD_REGISTRY_KEYS.items():
             for name, func in oven.pancake_dough.get(registry_key, {}).items():
                 path = oven.pancake_other["path"].get(name)
@@ -267,3 +346,7 @@ oven.muffin_flour["set_role_handler"] = set_role_handler
 
 # 事务
 oven.muffin_flour["transaction"] = transaction
+
+# 中间件 / 校验
+oven.muffin_flour["middleware"] = middleware
+oven.muffin_flour["validate"] = validate

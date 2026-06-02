@@ -10,6 +10,7 @@ import inspect
 import logging
 import re
 from dataclasses import dataclass, fields, is_dataclass
+from typing import Any
 
 from .connection import get_database
 from .sql_parser import parse_sql
@@ -80,6 +81,39 @@ def _build_where_from_dict(params: dict) -> tuple[str, dict]:
     return (" WHERE " + where) if where else "", values
 
 
+@dataclass
+class Page:
+    """分页查询参数"""
+    page: int = 1
+    size: int = 10
+
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.size
+
+    @property
+    def limit(self) -> int:
+        return self.size
+
+
+@dataclass
+class PageResult:
+    """分页查询结果"""
+    records: list
+    total: int
+    page: int
+    size: int
+    pages: int
+
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.pages
+
+    @property
+    def has_prev(self) -> bool:
+        return self.page > 1
+
+
 class BaseMapper:
     """
     MyBatis Plus BaseMapper
@@ -106,7 +140,7 @@ class BaseMapper:
         bool: "INTEGER",
     }
 
-    async def create_table(self):
+    async def create_table(self) -> None:
         """根据 _entity_class 的 dataclass 字段自动建表"""
         if self._entity_class is None or not is_dataclass(self._entity_class):
             raise ValueError(f"{self.__class__.__name__} 未定义 _entity_class 或不是 dataclass")
@@ -123,14 +157,14 @@ class BaseMapper:
         await db.execute(query=sql)
         logger.info(f"表 {self._table_name} 已创建")
 
-    async def select_by_id(self, id: int):
+    async def select_by_id(self, id: int) -> Any:
         """根据 ID 查询"""
         db = get_database()
         sql = f"SELECT * FROM {self._table_name} WHERE id = :id"
         row = await db.fetch_one(query=sql, values={"id": id})
         return _row_to_entity(row, self._entity_class)
 
-    async def select_list(self, **kwargs):
+    async def select_list(self, **kwargs) -> list:
         """条件查询列表"""
         db = get_database()
         where, values = _build_where_from_dict(kwargs)
@@ -138,7 +172,7 @@ class BaseMapper:
         rows = await db.fetch_all(query=sql, values=values)
         return _rows_to_entities(rows, self._entity_class)
 
-    async def select_one(self, **kwargs):
+    async def select_one(self, **kwargs) -> Any:
         """条件查询单条"""
         db = get_database()
         where, values = _build_where_from_dict(kwargs)
@@ -174,8 +208,9 @@ class BaseMapper:
         cols = ", ".join(records[0].keys())
         placeholders = ", ".join(f":{k}" for k in records[0].keys())
         sql = f"INSERT INTO {self._table_name} ({cols}) VALUES ({placeholders})"
-        for record in records:
-            await db.execute(query=sql, values=record)
+        async with db.transaction():
+            for record in records:
+                await db.execute(query=sql, values=record)
         return len(records)
 
     async def update_by_id(self, id: int, **kwargs) -> int:
@@ -289,6 +324,35 @@ class BaseMapper:
             where, values = _build_where_from_dict(kwargs)
             sql = f"DELETE FROM {self._table_name}{where}"
         return await db.execute(query=sql, values=values)
+
+    async def select_page(self, page: Page, wrapper: QueryWrapper = None, **kwargs) -> PageResult:
+        """
+        分页查询
+
+        用法:
+            result = await mapper.select_page(Page(page=1, size=10), name="Alice")
+            result = await mapper.select_page(Page(2, 20), qw().gt("age", 18))
+        """
+        db = get_database()
+        if wrapper is not None:
+            where_clause, values = wrapper.to_where_clause()
+        else:
+            where_clause, values = _build_where_from_dict(kwargs)
+
+        # 查总数
+        count_sql = f"SELECT COUNT(*) as cnt FROM {self._table_name}{where_clause}"
+        row = await db.fetch_one(query=count_sql, values=values)
+        total = row["cnt"] if row else 0
+
+        # 查数据
+        data_sql = f"SELECT * FROM {self._table_name}{where_clause} LIMIT :__limit OFFSET :__offset"
+        values["__limit"] = page.limit
+        values["__offset"] = page.offset
+        rows = await db.fetch_all(query=data_sql, values=values)
+        records = _rows_to_entities(rows, self._entity_class)
+
+        pages = (total + page.size - 1) // page.size if page.size > 0 else 0
+        return PageResult(records=records, total=total, page=page.page, size=page.size, pages=pages)
 
 
 def Mapper(cls):

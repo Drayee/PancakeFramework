@@ -58,6 +58,12 @@ class DatabaseManager:
         """重置状态（用于测试，不断开连接）"""
         self._database = None
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
 
 # 向后兼容的模块级默认实例
 _manager = DatabaseManager()

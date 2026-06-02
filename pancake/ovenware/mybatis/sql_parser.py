@@ -124,11 +124,11 @@ def parse_sql(sql: str, params: dict) -> tuple[str, dict]:
         test_expr = match.group(1)
         body = match.group(2)
         if _eval_test(test_expr, params):
-            return body
-        return ""
+            return " " + body + " "
+        return " "
 
     sql = re.sub(
-        r'<if\s+test="([^"]*)">\s*(.*?)\s*</if>',
+        r'\s*<if\s+test="([^"]*)">(.*?)</if>\s*',
         replace_if,
         sql,
         flags=re.DOTALL,
