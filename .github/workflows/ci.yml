@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies
         env:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
-        run: poetry install --extras "all" --no-interaction
+        run: poetry install --extras "all" --with dev --no-interaction
 
       - name: Run tests
         run: poetry run python -m pytest tests/ -v --tb=short
