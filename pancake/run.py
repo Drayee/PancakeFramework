@@ -1,4 +1,7 @@
 import logging
+import signal
+import sys
+
 from pancake import oven
 from .tool import ProgressBar
 from . import builder
@@ -38,8 +41,30 @@ def build_all():
     """构建服务"""
     builder.build.build()
 
+def _shutdown_handler(signum, frame):
+    """信号处理：优雅关闭"""
+    sig_name = signal.Signals(signum).name
+    logger.info(f"收到信号 {sig_name}，正在优雅关闭...")
+
+    # 关闭 lifecycle 管理的所有实例
+    from pancake.ovenware.lifecycle import lifecycle_manager
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(lifecycle_manager.shutdown_all())
+    except RuntimeError:
+        asyncio.run(lifecycle_manager.shutdown_all())
+
+    logger.info("Pancake 已关闭")
+    sys.exit(0)
+
+
 def run():
     """运行服务"""
+    # 注册信号处理
+    signal.signal(signal.SIGINT, _shutdown_handler)
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+
     loading_list = {
         "load xml": load_xml,
         "load config": load_config,

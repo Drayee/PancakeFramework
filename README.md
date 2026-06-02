@@ -40,6 +40,14 @@
 - **GUI** - Flet (Flutter) based GUI page registration with `@gui_page`
 - **Plugin System** - Auto-discovery with init-order control, external plugin dirs
 - **Centralized Settings** - All paths and configs managed through `settings.py`
+- **Database Migration** - Version-based schema migration with auto-detect changes
+- **Database Dialects** - Automatic SQLite / PostgreSQL / MySQL type mapping and syntax
+- **Connection Health** - Ping, auto-reconnect for database connections
+- **Rate Limiting** - `@rate_limit(times, seconds)` per-IP sliding window
+- **WebSocket** - `@websocket_controller` for real-time communication
+- **Config Hot-reload** - File watcher for YAML/JSON config changes
+- **Metrics** - `/metrics` endpoint with request count, latency, error rate
+- **API Docs** - Auto-generated Swagger (`/docs`) and ReDoc (`/redoc`)
 
 ## Quick Start
 
@@ -253,16 +261,16 @@ pip install pancake_framework[all]         # All optional deps
 
 ## TODO
 
-- [ ] Database migration support
-- [ ] Configuration hot-reload
-- [ ] Pagination `Page` object abstraction
-- [ ] OpenTelemetry / metrics integration
-- [ ] Graceful shutdown with signal handling
-- [ ] WebSocket support
-- [ ] Rate limiting middleware
-- [ ] API documentation auto-generation
-- [ ] More database dialects (SQLite/PG/MySQL type mapping)
-- [ ] Connection pool health check and auto-reconnect
+- [x] Database migration support
+- [x] Configuration hot-reload
+- [x] Pagination `Page` object abstraction
+- [x] OpenTelemetry / metrics integration
+- [x] Graceful shutdown with signal handling
+- [x] WebSocket support
+- [x] Rate limiting middleware
+- [x] API documentation auto-generation
+- [x] More database dialects (SQLite/PG/MySQL type mapping)
+- [x] Connection pool health check and auto-reconnect
 
 ## Running Tests
 

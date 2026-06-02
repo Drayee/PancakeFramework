@@ -7,9 +7,10 @@ import functools
 import inspect
 import logging
 import time
+from collections import defaultdict
 from typing import Any, Callable
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, Request, Response, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -223,10 +224,121 @@ def validate(**validators: Callable):
 
 
 # ============================================================
+#  指标统计
+# ============================================================
+
+_metrics = {
+    "request_count": 0,
+    "error_count": 0,
+    "total_duration": 0.0,
+    "by_path": defaultdict(lambda: {"count": 0, "errors": 0, "duration": 0.0}),
+}
+
+
+def _record_metric(path: str, method: str, status_code: int, duration: float):
+    """记录请求指标"""
+    _metrics["request_count"] += 1
+    _metrics["total_duration"] += duration
+    if status_code >= 400:
+        _metrics["error_count"] += 1
+
+    key = f"{method} {path}"
+    _metrics["by_path"][key]["count"] += 1
+    _metrics["by_path"][key]["duration"] += duration
+    if status_code >= 400:
+        _metrics["by_path"][key]["errors"] += 1
+
+
+def get_metrics() -> dict:
+    """获取指标快照"""
+    result = dict(_metrics)
+    result["by_path"] = dict(_metrics["by_path"])
+    result["avg_duration"] = (
+        _metrics["total_duration"] / _metrics["request_count"]
+        if _metrics["request_count"] > 0 else 0.0
+    )
+    return result
+
+
+# ============================================================
+#  限流
+# ============================================================
+
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+
+def rate_limit(times: int, seconds: int = 60):
+    """限流装饰器 — 限制指定时间窗口内的请求次数
+
+    基于客户端 IP 的滑动窗口限流，内存实现。
+
+    用法:
+        @get_controller("/api/data")
+        @rate_limit(times=100, seconds=60)
+        async def get_data():
+            ...
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, request: Request, **kwargs):
+            client_ip = request.client.host if request.client else "unknown"
+            key = f"{func.__name__}:{client_ip}"
+            now = time.time()
+
+            # 清理过期记录
+            _rate_limit_store[key] = [
+                t for t in _rate_limit_store[key] if now - t < seconds
+            ]
+
+            if len(_rate_limit_store[key]) >= times:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"请求过于频繁，请 {seconds} 秒后重试"
+                )
+
+            _rate_limit_store[key].append(now)
+            return await func(*args, request=request, **kwargs)
+        return wrapper
+    return decorator
+
+
+# ============================================================
+#  WebSocket 控制器
+# ============================================================
+
+_websocket_registry: dict[str, Callable] = {}
+_websocket_paths: dict[str, str] = {}
+
+
+def websocket_controller(path: str, name: str = None):
+    """WebSocket 控制器装饰器
+
+    装饰的函数签名为 async def handler(websocket: WebSocket)
+
+    用法:
+        @websocket_controller("/ws/chat")
+        async def chat(websocket: WebSocket):
+            await websocket.accept()
+            while True:
+                data = await websocket.receive_text()
+                await websocket.send_text(f"Echo: {data}")
+    """
+    def decorator(func: Callable) -> Callable:
+        nonlocal name
+        if name is None:
+            name = func.__name__
+        _websocket_registry[name] = func
+        _websocket_paths[name] = path
+        logger.info(f"WebSocket {name} 已注册: {path}")
+        return func
+    return decorator
+
+
+# ============================================================
 #  控制器装饰器（统一处理所有 HTTP 方法）
 # ============================================================
 
-def _register_controller(method: str, path: str, name: str | None = None):
+def _register_controller(method: str, path: str, name: str | None = None, tags: list[str] | None = None):
     """通用控制器注册内部方法"""
     registry_key = _METHOD_REGISTRY_KEYS[method]
 
@@ -236,34 +348,36 @@ def _register_controller(method: str, path: str, name: str | None = None):
             name = func.__name__
         oven.pancake_other["path"][name] = path
         oven.pancake_dough[registry_key][name] = func
+        if tags:
+            oven.pancake_other.setdefault("tags", {})[name] = tags
         logger.info(f"{registry_key} {name} 已加入库")
         return func
     return decorator
 
 
-def get_controller(path: str, name: str = None) -> Callable:
+def get_controller(path: str, name: str = None, tags: list[str] = None) -> Callable:
     """GET 控制器装饰器"""
-    return _register_controller("GET", path, name)
+    return _register_controller("GET", path, name, tags)
 
 
-def post_controller(path: str, name: str = None) -> Callable:
+def post_controller(path: str, name: str = None, tags: list[str] = None) -> Callable:
     """POST 控制器装饰器"""
-    return _register_controller("POST", path, name)
+    return _register_controller("POST", path, name, tags)
 
 
-def put_controller(path: str, name: str = None) -> Callable:
+def put_controller(path: str, name: str = None, tags: list[str] = None) -> Callable:
     """PUT 控制器装饰器"""
-    return _register_controller("PUT", path, name)
+    return _register_controller("PUT", path, name, tags)
 
 
-def delete_controller(path: str, name: str = None) -> Callable:
+def delete_controller(path: str, name: str = None, tags: list[str] = None) -> Callable:
     """DELETE 控制器装饰器"""
-    return _register_controller("DELETE", path, name)
+    return _register_controller("DELETE", path, name, tags)
 
 
-def patch_controller(path: str, name: str = None) -> Callable:
+def patch_controller(path: str, name: str = None, tags: list[str] = None) -> Callable:
     """PATCH 控制器装饰器"""
-    return _register_controller("PATCH", path, name)
+    return _register_controller("PATCH", path, name, tags)
 
 
 # ---- 兼容旧接口 ----
@@ -297,7 +411,22 @@ class Main(InitAction):
         self.service_version: str = oven.pancake_yaml.get("service.version", "0.1.0")
         self.service_host: str = oven.pancake_yaml.get("service.host", "127.0.0.1")
         self.service_port: int = int(oven.pancake_yaml.get("service.port", 8080))
-        self.app: FastAPI = FastAPI(title=self.service_title, version=self.service_version)
+        self.service_description: str = oven.pancake_yaml.get("service.description", "")
+
+        # API 文档配置
+        docs_enabled = oven.pancake_yaml.get("service.docs_enabled", True)
+        docs_url = "/docs" if docs_enabled else None
+        redoc_url = "/redoc" if docs_enabled else None
+        openapi_url = "/openapi.json" if docs_enabled else None
+
+        self.app: FastAPI = FastAPI(
+            title=self.service_title,
+            version=self.service_version,
+            description=self.service_description,
+            docs_url=docs_url,
+            redoc_url=redoc_url,
+            openapi_url=openapi_url,
+        )
 
     @staticmethod
     def check():
@@ -309,17 +438,44 @@ class Main(InitAction):
             self.app.add_middleware(BaseHTTPMiddleware, dispatch=mw["func"])
             logger.info(f"中间件 {mw['func'].__name__} 已挂载")
 
-        # 注册健康检查端点
-        @self.app.get("/health")
-        async def health_check() -> dict:
-            return {"status": "ok", "title": self.service_title, "version": self.service_version}
+        # 注册指标中间件
+        metrics_enabled = oven.pancake_yaml.get("service.metrics_enabled", True)
+        if metrics_enabled:
+            @self.app.middleware("http")
+            async def metrics_middleware(request: Request, call_next):
+                start = time.time()
+                response = await call_next(request)
+                duration = time.time() - start
+                _record_metric(request.url.path, request.method, response.status_code, duration)
+                return response
+
+            @self.app.get("/health")
+            async def health_check() -> dict:
+                return {"status": "ok", "title": self.service_title, "version": self.service_version}
+
+            @self.app.get("/metrics")
+            async def metrics_endpoint() -> dict:
+                return get_metrics()
+        else:
+            @self.app.get("/health")
+            async def health_check() -> dict:
+                return {"status": "ok", "title": self.service_title, "version": self.service_version}
 
         # 注册控制器路由
+        tags_map = oven.pancake_other.get("tags", {})
         for method, registry_key in _METHOD_REGISTRY_KEYS.items():
             for name, func in oven.pancake_dough.get(registry_key, {}).items():
                 path = oven.pancake_other["path"].get(name)
                 if path:
-                    self.app.add_api_route(path, func, methods=[method])
+                    tags = tags_map.get(name)
+                    self.app.add_api_route(path, func, methods=[method], tags=tags)
+
+        # 注册 WebSocket 路由
+        for name, func in _websocket_registry.items():
+            path = _websocket_paths.get(name)
+            if path:
+                self.app.websocket(path)(func)
+                logger.info(f"WebSocket 路由 {name} 已挂载: {path}")
 
     def loop_method(self):
         logger.info(f"启动服务 {self.service_title}，监听地址 {self.service_host}:{self.service_port}")
@@ -350,3 +506,9 @@ oven.muffin_flour["transaction"] = transaction
 # 中间件 / 校验
 oven.muffin_flour["middleware"] = middleware
 oven.muffin_flour["validate"] = validate
+
+# 限流
+oven.muffin_flour["rate_limit"] = rate_limit
+
+# WebSocket
+oven.muffin_flour["websocket_controller"] = websocket_controller
