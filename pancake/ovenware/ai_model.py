@@ -90,11 +90,22 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def _resolve_env(value: str) -> str:
-    """解析 ${ENV_VAR} 占位符"""
+    """解析 ${ENV_VAR} 占位符（与 yml.py 的占位符解析保持一致）"""
     if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
         env_key = value[2:-1]
         return os.environ.get(env_key, "")
     return value
+
+
+def _resolve_env_recursive(obj):
+    """递归解析配置中的 ${ENV_VAR} 占位符"""
+    if isinstance(obj, dict):
+        return {k: _resolve_env_recursive(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_resolve_env_recursive(i) for i in obj]
+    if isinstance(obj, str):
+        return _resolve_env(obj)
+    return obj
 
 
 # ============================================================
@@ -567,80 +578,136 @@ class RedisLongTermMemory(LongTermMemory):
 
 
 class SQLiteLongTermMemory(LongTermMemory):
-    """SQLite 后端长期记忆"""
+    """SQLite 后端长期记忆
+
+    优先复用 mybatis 的数据库连接（如果已初始化），
+    否则使用独立的 aiosqlite 连接。
+    """
 
     def __init__(self, config: dict):
         super().__init__(config)
         self._db_path = config.get("sqlite_path", "resource/db/memory.db")
         self._conn = None
+        self._use_mybatis = False
 
     async def _get_conn(self):
         if self._conn is None:
-            import aiosqlite
-            os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
-            self._conn = await aiosqlite.connect(self._db_path)
-            await self._conn.execute("""
-                CREATE TABLE IF NOT EXISTS memory (
-                    namespace TEXT,
-                    key TEXT,
-                    value TEXT,
-                    created_at REAL DEFAULT (strftime('%s', 'now')),
-                    PRIMARY KEY (namespace, key)
-                )
-            """)
-            await self._conn.commit()
-        return self._conn
+            # 尝试复用 mybatis 的数据库连接
+            try:
+                from .mybatis.connection import get_database
+                db = get_database()
+                # databases 库的 execute 返回的是 Row，需要不同处理
+                # 先检查 memory 表是否存在
+                self._use_mybatis = True
+                self._db = db
+                await db.execute("""
+                    CREATE TABLE IF NOT EXISTS memory (
+                        namespace TEXT,
+                        key TEXT,
+                        value TEXT,
+                        created_at REAL DEFAULT (strftime('%s', 'now')),
+                        PRIMARY KEY (namespace, key)
+                    )
+                """)
+                return db
+            except (RuntimeError, ImportError):
+                # mybatis 未初始化，使用独立连接
+                import aiosqlite
+                os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
+                self._conn = await aiosqlite.connect(self._db_path)
+                await self._conn.execute("""
+                    CREATE TABLE IF NOT EXISTS memory (
+                        namespace TEXT,
+                        key TEXT,
+                        value TEXT,
+                        created_at REAL DEFAULT (strftime('%s', 'now')),
+                        PRIMARY KEY (namespace, key)
+                    )
+                """)
+                await self._conn.commit()
+        return self._db if self._use_mybatis else self._conn
 
     async def remember(self, key: str, value: Any, ttl: int = None) -> None:
         conn = await self._get_conn()
         data = json.dumps(value, ensure_ascii=False)
-        await conn.execute(
-            "INSERT OR REPLACE INTO memory (namespace, key, value) VALUES (?, ?, ?)",
-            (self._namespace, key, data),
-        )
-        await conn.commit()
+        if self._use_mybatis:
+            await conn.execute(
+                "INSERT OR REPLACE INTO memory (namespace, key, value) VALUES (:ns, :key, :val)",
+                {"ns": self._namespace, "key": key, "val": data},
+            )
+        else:
+            await conn.execute(
+                "INSERT OR REPLACE INTO memory (namespace, key, value) VALUES (?, ?, ?)",
+                (self._namespace, key, data),
+            )
+            await conn.commit()
 
     async def recall(self, key: str) -> Any:
         conn = await self._get_conn()
-        cursor = await conn.execute(
-            "SELECT value FROM memory WHERE namespace = ? AND key = ?",
-            (self._namespace, key),
-        )
-        row = await cursor.fetchone()
-        if row:
-            return json.loads(row[0])
-        return None
+        if self._use_mybatis:
+            row = await conn.fetch_one(
+                "SELECT value FROM memory WHERE namespace = :ns AND key = :key",
+                {"ns": self._namespace, "key": key},
+            )
+            return json.loads(row[0]) if row else None
+        else:
+            cursor = await conn.execute(
+                "SELECT value FROM memory WHERE namespace = ? AND key = ?",
+                (self._namespace, key),
+            )
+            row = await cursor.fetchone()
+            return json.loads(row[0]) if row else None
 
     async def forget(self, key: str) -> None:
         conn = await self._get_conn()
-        await conn.execute(
-            "DELETE FROM memory WHERE namespace = ? AND key = ?",
-            (self._namespace, key),
-        )
-        await conn.commit()
+        if self._use_mybatis:
+            await conn.execute(
+                "DELETE FROM memory WHERE namespace = :ns AND key = :key",
+                {"ns": self._namespace, "key": key},
+            )
+        else:
+            await conn.execute(
+                "DELETE FROM memory WHERE namespace = ? AND key = ?",
+                (self._namespace, key),
+            )
+            await conn.commit()
 
     async def search(self, query: str, limit: int = 10) -> list[dict]:
         conn = await self._get_conn()
-        cursor = await conn.execute(
-            "SELECT key, value FROM memory WHERE namespace = ? AND (key LIKE ? OR value LIKE ?) LIMIT ?",
-            (self._namespace, f"%{query}%", f"%{query}%", limit),
-        )
-        results = []
-        async for row in cursor:
-            results.append({"key": row[0], "value": json.loads(row[1])})
-        return results
+        if self._use_mybatis:
+            rows = await conn.fetch_all(
+                "SELECT key, value FROM memory WHERE namespace = :ns AND (key LIKE :q1 OR value LIKE :q2) LIMIT :lim",
+                {"ns": self._namespace, "q1": f"%{query}%", "q2": f"%{query}%", "lim": limit},
+            )
+            return [{"key": row[0], "value": json.loads(row[1])} for row in rows]
+        else:
+            cursor = await conn.execute(
+                "SELECT key, value FROM memory WHERE namespace = ? AND (key LIKE ? OR value LIKE ?) LIMIT ?",
+                (self._namespace, f"%{query}%", f"%{query}%", limit),
+            )
+            results = []
+            async for row in cursor:
+                results.append({"key": row[0], "value": json.loads(row[1])})
+            return results
 
     async def list_keys(self, pattern: str = "*") -> list[str]:
         conn = await self._get_conn()
         sql_pattern = pattern.replace("*", "%")
-        cursor = await conn.execute(
-            "SELECT key FROM memory WHERE namespace = ? AND key LIKE ?",
-            (self._namespace, sql_pattern),
-        )
-        results = []
-        async for row in cursor:
-            results.append(row[0])
-        return results
+        if self._use_mybatis:
+            rows = await conn.fetch_all(
+                "SELECT key FROM memory WHERE namespace = :ns AND key LIKE :pat",
+                {"ns": self._namespace, "pat": sql_pattern},
+            )
+            return [row[0] for row in rows]
+        else:
+            cursor = await conn.execute(
+                "SELECT key FROM memory WHERE namespace = ? AND key LIKE ?",
+                (self._namespace, sql_pattern),
+            )
+            results = []
+            async for row in cursor:
+                results.append(row[0])
+            return results
 
     async def close(self):
         if self._conn:
@@ -846,10 +913,8 @@ class Main(InitAction):
         user_config = self._build_config_from_flat_keys()
         config = _deep_merge(_DEFAULT_CONFIG, user_config)
 
-        # 解析环境变量
-        for name, provider in config.get("providers", {}).items():
-            if "api_key" in provider:
-                provider["api_key"] = _resolve_env(provider["api_key"])
+        # 递归解析所有 ${ENV_VAR} 占位符
+        config = _resolve_env_recursive(config)
 
         # 创建 ChatModel
         _chat_model = ChatModel(config)
