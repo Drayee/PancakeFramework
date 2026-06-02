@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # 向后兼容导入
 from .langgraph.core import langgraph_node, langgraph_edge, Main
-from .langgraph.ioc import IoCContainer, inject, container
+from .ioc import IoCContainer, inject, container
 from .langgraph.remote import remote_node, HttpRemote, GrpcRemote, proxy
 from .langgraph.broker import event_node, on_event, SimpleBroker, RedisBroker, get_broker, set_broker
 from .langgraph.lifecycle import Lifecycle, LifecycleManager, lifecycle_node, lifecycle_context, lifecycle_manager

@@ -3,7 +3,7 @@ Langgraph 插件 - 支持 IoC 和分布式开发
 """
 
 from .core import langgraph_node, langgraph_edge, Main
-from .ioc import IoCContainer, inject, container
+from ..ioc import IoCContainer, inject, container
 from .remote import remote_node, HttpRemote, GrpcRemote
 from .broker import event_node, SimpleBroker, RedisBroker
 from .lifecycle import Lifecycle
