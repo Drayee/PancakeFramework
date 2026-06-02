@@ -23,6 +23,8 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install dependencies
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
         run: poetry install --extras "all" --no-interaction
 
       - name: Run tests
