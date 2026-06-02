@@ -140,16 +140,33 @@ class BaseMapper:
         bool: "INTEGER",
     }
 
+    def _auto_increment_sql(self) -> str:
+        """根据数据库类型返回自增 SQL 片段"""
+        from .connection import _manager
+        db = _manager._database
+        if db is None:
+            return "AUTOINCREMENT"
+        url = str(db.url)
+        if url.startswith("postgresql") or url.startswith("postgres"):
+            return "SERIAL"
+        if url.startswith("mysql") or url.startswith("mariadb"):
+            return "AUTO_INCREMENT"
+        return "AUTOINCREMENT"
+
     async def create_table(self) -> None:
         """根据 _entity_class 的 dataclass 字段自动建表"""
         if self._entity_class is None or not is_dataclass(self._entity_class):
             raise ValueError(f"{self.__class__.__name__} 未定义 _entity_class 或不是 dataclass")
         db = get_database()
+        auto_inc = self._auto_increment_sql()
         cols = []
         for f in fields(self._entity_class):
             col_type = self._TYPE_MAP.get(f.type, "TEXT")
             if f.name == "id":
-                cols.append(f"    {f.name} {col_type} PRIMARY KEY AUTOINCREMENT")
+                if auto_inc == "SERIAL":
+                    cols.append(f"    {f.name} SERIAL PRIMARY KEY")
+                else:
+                    cols.append(f"    {f.name} {col_type} PRIMARY KEY {auto_inc}")
             else:
                 cols.append(f"    {f.name} {col_type}")
         col_sql = ",\n".join(cols)

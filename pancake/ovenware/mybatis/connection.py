@@ -55,7 +55,7 @@ class DatabaseManager:
         return self._database
 
     def reset(self) -> None:
-        """重置状态（用于测试，不断开连接）"""
+        """重置引用（仅用于测试，不断开连接）。生产环境请用 close()"""
         self._database = None
 
     async def __aenter__(self):

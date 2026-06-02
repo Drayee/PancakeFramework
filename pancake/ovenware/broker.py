@@ -30,14 +30,29 @@ class MessageBroker:
         pass
 
 
+# 延迟订阅队列：on_event 注册的 handler 在首次 publish 时自动订阅
+_pending_subscriptions: dict[str, list[Callable]] = defaultdict(list)
+
+
 class SimpleBroker(MessageBroker):
     """简单内存消息队列"""
 
     def __init__(self):
         self._handlers: dict[str, list[Callable]] = defaultdict(list)
+        self._initialized = False
+
+    def _setup_pending(self):
+        """将 on_event 注册的延迟 handler 合并到 _handlers"""
+        if not self._initialized:
+            for topic, handlers in _pending_subscriptions.items():
+                for h in handlers:
+                    if h not in self._handlers[topic]:
+                        self._handlers[topic].append(h)
+            self._initialized = True
 
     async def publish(self, topic: str, message: dict) -> None:
         """发布消息并立即触发处理"""
+        self._setup_pending()
         await self._process_message(topic, message)
 
     async def subscribe(self, topic: str, handler: Callable) -> None:
@@ -71,6 +86,22 @@ class RedisBroker(MessageBroker):
         self._pubsub = None
         self._handlers: dict[str, list[Callable]] = defaultdict(list)
         self._listener_task = None
+        self._initialized = False
+
+    async def _setup_pending(self):
+        """将 on_event 注册的延迟 handler 合并并订阅"""
+        if not self._initialized:
+            for topic, handlers in _pending_subscriptions.items():
+                for h in handlers:
+                    if h not in self._handlers[topic]:
+                        self._handlers[topic].append(h)
+                        redis = await self._get_redis()
+                        if self._pubsub is None:
+                            self._pubsub = redis.pubsub()
+                        await self._pubsub.subscribe(topic)
+            if self._listener_task is None and self._handlers:
+                self._listener_task = asyncio.create_task(self._listen())
+            self._initialized = True
 
     async def _get_redis(self):
         if self._redis is None:
@@ -80,6 +111,7 @@ class RedisBroker(MessageBroker):
 
     async def publish(self, topic: str, message: dict) -> None:
         """发布消息到 Redis"""
+        await self._setup_pending()
         redis = await self._get_redis()
         import json
         await redis.publish(topic, json.dumps(message))
@@ -135,10 +167,17 @@ class RedisBroker(MessageBroker):
         """关闭连接"""
         if self._listener_task:
             self._listener_task.cancel()
+            try:
+                await self._listener_task
+            except asyncio.CancelledError:
+                pass
+            self._listener_task = None
         if self._pubsub:
             await self._pubsub.close()
+            self._pubsub = None
         if self._redis:
             await self._redis.close()
+            self._redis = None
 
 
 class BrokerManager:
@@ -231,15 +270,8 @@ def on_event(event: str):
         event: 事件名称
     """
     def decorator(func):
-        # 异步订阅
-        async def setup():
-            broker = get_broker()
-            await broker.subscribe(event, func)
-
-        # 保存设置函数
-        func._event_setup = setup
+        _pending_subscriptions[event].append(func)
         func._event_name = event
-
         return func
     return decorator
 

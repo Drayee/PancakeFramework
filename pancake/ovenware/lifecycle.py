@@ -152,17 +152,13 @@ def lifecycle_node(name: str = None):
 
         @functools.wraps(cls)
         async def wrapper(*args, **kwargs):
-            # 创建实例
-            instance = cls(*args, **kwargs)
-
-            # 注册到管理器
-            await lifecycle_manager.register(name, instance)
-
-            # 自动初始化
-            await lifecycle_manager.initialize(name)
-
-            # 自动启动
-            await lifecycle_manager.start(name)
+            # 复用已有实例，避免每次调用都创建新对象
+            instance = lifecycle_manager._instances.get(name)
+            if instance is None:
+                instance = cls(*args, **kwargs)
+                await lifecycle_manager.register(name, instance)
+                await lifecycle_manager.initialize(name)
+                await lifecycle_manager.start(name)
 
             # 调用主处理方法
             if hasattr(instance, "process"):
