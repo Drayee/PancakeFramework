@@ -1,15 +1,23 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - "v*"
+  pull_request:
+    branches: [main]
+    types: [closed]
 
 jobs:
-  test:
+  publish:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
@@ -30,29 +38,11 @@ jobs:
       - name: Run tests
         run: poetry run python -m pytest tests/ -v --tb=short
 
-  publish:
-    needs: test
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-
-      - name: Sync version from tag
+      - name: Read version from pyproject.toml
+        id: version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          poetry version "$VERSION"
+          VERSION=$(poetry version -s)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Publishing version: $VERSION"
 
       - name: Build package
@@ -61,13 +51,22 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "v${{ steps.version.outputs.version }}"
+          name: "v${{ steps.version.outputs.version }}"
           files: dist/*
           generate_release_notes: true
           body: |
-            ## ${{ github.ref_name }}
+            ## ${{ steps.version.outputs.version }}
 
             ### Features
             - Decorator-driven Python web framework with zero-import design
