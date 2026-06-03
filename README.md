@@ -72,6 +72,7 @@ class UserMapper(BaseMapper):
 | [Lifecycle](docs/lifecycle.md) | Component lifecycle hooks |
 | [Messaging](docs/messaging.md) | Event-driven message queue |
 | [Remote](docs/remote.md) | HTTP and gRPC remote calls |
+| [Security](docs/security.md) | Password hashing, API key, CSRF, OAuth2, sessions |
 
 ## Optional Dependencies
 

@@ -112,6 +112,21 @@ class Main(InitAction):
             if not any(f["name"] == "metrics" for f in _filter_registry):
                 MetricsFilter()
 
+        # 按配置启用安全 Filter
+        from .security import SecurityHeadersFilter, IPFilter, CSRFProtectFilter
+
+        security_headers_enabled = oven.pancake_yaml.get("service.security_headers.enabled", True)
+        if security_headers_enabled and not any(f["name"] == "security_headers" for f in _filter_registry):
+            SecurityHeadersFilter()
+
+        ip_filter_enabled = oven.pancake_yaml.get("service.ip_whitelist") or oven.pancake_yaml.get("service.ip_blacklist")
+        if ip_filter_enabled and not any(f["name"] == "ip_filter" for f in _filter_registry):
+            IPFilter()
+
+        csrf_enabled = oven.pancake_yaml.get("service.csrf.enabled", False)
+        if csrf_enabled and not any(f["name"] == "csrf_protect" for f in _filter_registry):
+            CSRFProtectFilter()
+
         # 注册 Filter Chain 中间件
         filters = list(_filter_registry)
         if filters:

@@ -17,6 +17,15 @@ from .controller import (
 from .middleware import transaction, rate_limit
 from .websocket import websocket_controller
 from .metrics import get_metrics
+from .security import (
+    hash_password, verify_password,
+    api_key_required,
+    generate_csrf_token,
+    SecurityHeadersFilter, IPFilter, CSRFProtectFilter,
+    SessionManager, get_session,
+    OAuth2Server, OAuth2ResourceServer, oauth2_required,
+    register_oauth2_routes,
+)
 from .main import Main
 
 # 注册到 oven，使 embed 自动注入到 builtins
@@ -52,3 +61,13 @@ oven.muffin_flour["rate_limit"] = rate_limit
 
 # WebSocket
 oven.muffin_flour["websocket_controller"] = websocket_controller
+
+# 安全模块
+oven.muffin_flour["hash_password"] = hash_password
+oven.muffin_flour["verify_password"] = verify_password
+oven.muffin_flour["api_key_required"] = api_key_required
+oven.muffin_flour["generate_csrf_token"] = generate_csrf_token
+oven.muffin_flour["SessionManager"] = SessionManager
+oven.muffin_flour["get_session"] = get_session
+oven.muffin_flour["OAuth2Server"] = OAuth2Server
+oven.muffin_flour["oauth2_required"] = oauth2_required

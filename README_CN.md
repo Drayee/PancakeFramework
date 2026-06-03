@@ -62,6 +62,7 @@ class UserMapper(BaseMapper):
 | [生命周期](docs/cn/lifecycle.md) | 组件生命周期钩子 |
 | [消息队列](docs/cn/messaging.md) | 事件驱动消息队列 |
 | [远程调用](docs/cn/remote.md) | HTTP 和 gRPC 远程调用 |
+| [安全](docs/cn/security.md) | 密码哈希、API Key、CSRF、OAuth2、会话管理 |
 
 ## 可选依赖
 
