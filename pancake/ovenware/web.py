@@ -270,6 +270,21 @@ def get_metrics() -> dict:
 # ============================================================
 
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_rate_limit_cleanup_counter: int = 0
+_RATE_LIMIT_CLEANUP_INTERVAL: int = 1000  # 每 1000 次请求全量清理一次
+
+
+def _rate_limit_cleanup():
+    """清理所有过期的限流记录"""
+    global _rate_limit_cleanup_counter
+    _rate_limit_cleanup_counter += 1
+    if _rate_limit_cleanup_counter < _RATE_LIMIT_CLEANUP_INTERVAL:
+        return
+    _rate_limit_cleanup_counter = 0
+    now = time.time()
+    expired_keys = [k for k, v in _rate_limit_store.items() if not v or now - v[-1] > 300]
+    for k in expired_keys:
+        del _rate_limit_store[k]
 
 
 def rate_limit(times: int, seconds: int = 60):
@@ -290,7 +305,10 @@ def rate_limit(times: int, seconds: int = 60):
             key = f"{func.__name__}:{client_ip}"
             now = time.time()
 
-            # 清理过期记录
+            # 定期清理全局过期记录
+            _rate_limit_cleanup()
+
+            # 清理当前 key 的过期记录
             _rate_limit_store[key] = [
                 t for t in _rate_limit_store[key] if now - t < seconds
             ]
