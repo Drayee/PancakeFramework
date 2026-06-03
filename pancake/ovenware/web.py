@@ -10,6 +10,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -455,6 +456,15 @@ class Main(InitAction):
         redoc_url = "/redoc" if docs_enabled else None
         openapi_url = "/openapi.json" if docs_enabled else None
 
+        # 生命周期管理：执行各插件注册的 startup/shutdown 钩子
+        @asynccontextmanager
+        async def lifespan(app):
+            for hook in oven.muffin_egg.get("on_startup", []):
+                await hook()
+            yield
+            for hook in oven.muffin_egg.get("on_shutdown", []):
+                await hook()
+
         self.app: FastAPI = FastAPI(
             title=self.service_title,
             version=self.service_version,
@@ -462,6 +472,7 @@ class Main(InitAction):
             docs_url=docs_url,
             redoc_url=redoc_url,
             openapi_url=openapi_url,
+            lifespan=lifespan,
         )
 
         # 模板和静态文件配置
