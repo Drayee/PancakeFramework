@@ -58,7 +58,7 @@ class QueryWrapper:
         self._limit: int | None = None
         self._offset: int | None = None
         self._select_cols: list[str] = []
-        self._last_sql: str = ""
+        self._raw_sqls: list[tuple[str, dict]] = []  # (sql, params) 参数化原始 SQL 片段
         self._param_idx: int = 0
         self._or_groups: list = []  # 用于 OR 分组
         self._current_logic: str = "AND"
@@ -214,9 +214,31 @@ class QueryWrapper:
         self._offset = n
         return self
 
+    def append_raw(self, sql: str, params: dict = None) -> "QueryWrapper":
+        """追加参数化原始 SQL 片段
+
+        Args:
+            sql: SQL 片段，使用 :name 参数占位符
+            params: 参数字典
+
+        用法:
+            qw().eq("status", 1).append_raw("age > :min_age", {"min_age": 18})
+        """
+        self._raw_sqls.append((sql, params or {}))
+        return self
+
     def last(self, sql: str) -> "QueryWrapper":
-        """追加原始 SQL 片段（慎用，有 SQL 注入风险）"""
-        self._last_sql = sql
+        """追加原始 SQL 片段（已废弃，请使用 append_raw）
+
+        .. deprecated:: 使用 append_raw(sql, params) 替代，避免 SQL 注入风险
+        """
+        import warnings
+        warnings.warn(
+            "last() 已废弃，有 SQL 注入风险，请使用 append_raw(sql, params)",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._raw_sqls.append((sql, {}))
         return self
 
     # ---- 列选择 ----
@@ -335,8 +357,9 @@ class QueryWrapper:
             sql += f" LIMIT {self._limit}"
         if self._offset is not None:
             sql += f" OFFSET {self._offset}"
-        if self._last_sql:
-            sql += f" {self._last_sql}"
+        for raw_sql, raw_params in self._raw_sqls:
+            sql += f" {raw_sql}"
+            values.update(raw_params)
 
         return sql, values
 
