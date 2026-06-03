@@ -89,7 +89,7 @@ def auth_required(func: Callable) -> Callable:
     has_current_user = "current_user" in sig.parameters
 
     @functools.wraps(func)
-    async def wrapper(*args, current_user: Any = Depends(_get_current_user), **kwargs):
+    async def wrapper(*args, request: Request = None, current_user: Any = Depends(_get_current_user), **kwargs):
         if current_user is None and _auth_handler is not None:
             raise HTTPException(status_code=401, detail="未认证")
         if has_current_user:
