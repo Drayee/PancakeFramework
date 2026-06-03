@@ -201,6 +201,15 @@ class QueryWrapper:
         return self
 
     def having(self, condition: str, params: dict = None) -> "QueryWrapper":
+        """HAVING 条件（参数化）
+
+        Args:
+            condition: 条件表达式，使用 :name 参数占位符防注入
+            params: 参数字典
+
+        用法:
+            qw().group_by("dept").having("COUNT(*) > :min_count", {"min_count": 5})
+        """
         self._having = condition
         if params:
             self._having_params.update(params)
