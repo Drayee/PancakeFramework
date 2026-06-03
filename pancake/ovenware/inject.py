@@ -11,6 +11,7 @@
 import functools
 import inspect
 import logging
+import threading
 from enum import Enum
 from typing import Any, Callable, Type, get_type_hints
 
@@ -151,6 +152,7 @@ class IoCContainer:
         self._singletons: dict[str, Any] = {}
         self._scoped: dict[str, Any] = {}
         self._resolving: set[str] = set()  # 循环依赖检测
+        self._lock = threading.Lock()  # 线程安全
 
     def register(self, interface: Type = None, implementation: Any = None,
                  scope: Scope = Scope.TRANSIENT, factory: Callable = None):
@@ -197,31 +199,38 @@ class IoCContainer:
         if key not in self._registrations:
             raise ValueError(f"未注册的依赖: {key}")
 
-        # 循环依赖检测
-        if key in self._resolving:
-            chain = " -> ".join(self._resolving) + f" -> {key}"
-            raise ValueError(f"检测到循环依赖: {chain}")
-
         reg = self._registrations[key]
         scope = reg["scope"]
 
-        # 单例已缓存，直接返回
+        # 快速路径：已缓存的单例/作用域，无需加锁
         if scope == Scope.SINGLETON and key in self._singletons:
             return self._singletons[key]
         if scope == Scope.SCOPED and key in self._scoped:
             return self._scoped[key]
 
-        # 标记正在解析
-        self._resolving.add(key)
-        try:
-            instance = self._create_instance(reg)
-        finally:
-            self._resolving.discard(key)
+        # 加锁创建实例（double-checked locking）
+        with self._lock:
+            # 再次检查缓存
+            if scope == Scope.SINGLETON and key in self._singletons:
+                return self._singletons[key]
+            if scope == Scope.SCOPED and key in self._scoped:
+                return self._scoped[key]
 
-        if scope == Scope.SINGLETON:
-            self._singletons[key] = instance
-        elif scope == Scope.SCOPED:
-            self._scoped[key] = instance
+            # 循环依赖检测
+            if key in self._resolving:
+                chain = " -> ".join(self._resolving) + f" -> {key}"
+                raise ValueError(f"检测到循环依赖: {chain}")
+
+            self._resolving.add(key)
+            try:
+                instance = self._create_instance(reg)
+            finally:
+                self._resolving.discard(key)
+
+            if scope == Scope.SINGLETON:
+                self._singletons[key] = instance
+            elif scope == Scope.SCOPED:
+                self._scoped[key] = instance
 
         return instance
 
