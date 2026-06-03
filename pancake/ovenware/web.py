@@ -8,6 +8,7 @@ import functools
 import inspect
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -238,20 +239,22 @@ _metrics = {
     "total_duration": 0.0,
     "by_path": defaultdict(lambda: {"count": 0, "errors": 0, "duration": 0.0}),
 }
+_metrics_lock = threading.Lock()
 
 
 def _record_metric(path: str, method: str, status_code: int, duration: float):
-    """记录请求指标"""
-    _metrics["request_count"] += 1
-    _metrics["total_duration"] += duration
-    if status_code >= 400:
-        _metrics["error_count"] += 1
+    """记录请求指标（线程安全）"""
+    with _metrics_lock:
+        _metrics["request_count"] += 1
+        _metrics["total_duration"] += duration
+        if status_code >= 400:
+            _metrics["error_count"] += 1
 
-    key = f"{method} {path}"
-    _metrics["by_path"][key]["count"] += 1
-    _metrics["by_path"][key]["duration"] += duration
-    if status_code >= 400:
-        _metrics["by_path"][key]["errors"] += 1
+        key = f"{method} {path}"
+        _metrics["by_path"][key]["count"] += 1
+        _metrics["by_path"][key]["duration"] += duration
+        if status_code >= 400:
+            _metrics["by_path"][key]["errors"] += 1
 
 
 def get_metrics() -> dict:
