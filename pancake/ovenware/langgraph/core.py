@@ -15,7 +15,16 @@ from typing import Any, Callable, Optional
 
 from pancake import oven
 from pancake.ovenware import check_dependencies
-from ..inject import _get_param_types
+
+
+def _get_param_names(func) -> list[str]:
+    """获取函数参数名（排除 self、*args、**kwargs）"""
+    return [
+        name for name, param in inspect.signature(func).parameters.items()
+        if name != "self" and param.kind not in (
+            inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD
+        )
+    ]
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +261,7 @@ def langgraph_node(name: str = None, first_last: bool = None):
                 oven.pancake_other.setdefault("last_node", []).append(name)
 
         # 获取参数类型用于依赖注入
-        param_types = list(_get_param_types(func).keys())
+        param_types = _get_param_names(func)
         is_async = asyncio.iscoroutinefunction(func)
 
         @functools.wraps(func)
@@ -333,7 +342,7 @@ def langgraph_edge(from_node: str = None, route_map: dict = None, name: str = No
         }
 
         # 获取参数类型
-        param_types = list(_get_param_types(func).keys())
+        param_types = _get_param_names(func)
 
         @functools.wraps(func)
         def wrapper(state):

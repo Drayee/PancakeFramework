@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
     服务装饰器
 """
 class Service:
+    _load_priority = 20  # Service 先于 controller (50) 加载
+
     def __init__(self, cls):
 
         cls.__init__ = auto_inject()(cls.__init__)

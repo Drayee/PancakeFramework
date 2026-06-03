@@ -64,12 +64,9 @@ class Main(InitAction):
         )
 
     def build(self):
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._init_db())
-        except RuntimeError:
-            asyncio.run(self._init_db())
+        # 注册 startup/shutdown 钩子，在 uvicorn event loop 中执行
+        oven.muffin_egg.setdefault("on_startup", []).append(self._init_db)
+        oven.muffin_egg.setdefault("on_shutdown", []).append(self.shutdown)
         logger.info("MyBatis Plus 模块构建完成")
 
     async def shutdown(self):

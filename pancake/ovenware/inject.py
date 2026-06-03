@@ -24,10 +24,12 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 def _get_param_types(func):
-    """获取函数参数类型注解"""
+    """获取函数参数类型注解（跳过 *args、**kwargs 和无注解参数）"""
     sig = inspect.signature(func)
     param_types = {}
     for name, param in sig.parameters.items():
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            continue
         param_types[name] = param.annotation
     return param_types
 

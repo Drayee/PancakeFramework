@@ -120,6 +120,9 @@ def _load_from_directory():
 
 def run():
     """加载插件：优先 XML 配置，回退到目录扫描"""
+    # 加载 base 模块，注册 Service 等基础装饰器到 muffin_flour
+    importlib.import_module("pancake.ovenware.base")
+
     has_xml = bool(oven.pancake_xml.get("plugins"))
 
     if has_xml:
