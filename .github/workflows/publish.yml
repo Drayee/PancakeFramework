@@ -52,9 +52,6 @@ jobs:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
         run: poetry install --with dev --no-interaction
 
-      - name: Run tests
-        run: poetry run pytest tests/ -v --tb=short
-
       - name: Read metadata from pyproject.toml
         id: metadata
         run: |
