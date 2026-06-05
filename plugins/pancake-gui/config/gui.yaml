@@ -1,5 +1,0 @@
-# GUI 插件默认配置
-gui:
-  title: "Pancake GUI"
-  width: 800
-  height: 600
