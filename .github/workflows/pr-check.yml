@@ -23,15 +23,36 @@ jobs:
           fi
           echo "✅ PR 标题格式正确: $TITLE"
 
+      - name: Check PR description
+        run: |
+          BODY="${{ github.event.pull_request.body }}"
+          if [ -z "$BODY" ]; then
+            echo "⚠️ PR 描述为空，建议添加描述说明改动内容"
+          else
+            echo "✅ PR 描述已填写"
+          fi
+
+      - name: Check branch naming
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          PATTERN="^(feat|fix|refactor|docs|test|chore)/"
+          if [[ ! "$BRANCH" =~ $PATTERN ]]; then
+            echo "⚠️ 分支名不符合规范: '$BRANCH'"
+            echo "期望格式: <type>/<description>"
+            echo "类型: feat / fix / refactor / docs / test / chore"
+          else
+            echo "✅ 分支名格式正确: $BRANCH"
+          fi
+
       - name: Check no direct main branch merge from non-main
         if: github.base_ref == 'main'
         run: |
           echo "ℹ️ 合并到 main 分支，请确保已通过 dev 分支验证"
 
-      - name: Run tests
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -39,10 +60,18 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-3.12-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-3.12-
+
       - name: Install dependencies
         env:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
-        run: poetry install --extras "all" --with dev --no-interaction
+        run: poetry install --all-extras --with dev --no-interaction
 
       - name: Run tests
-        run: poetry run python -m pytest tests/ -v --tb=short
+        run: poetry run pytest tests/ -v --tb=short
