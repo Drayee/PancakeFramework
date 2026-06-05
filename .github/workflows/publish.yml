@@ -1,13 +1,13 @@
 name: Publish to PyPI
 
 on:
-  pull_request:
+  push:
     branches: [master]
-    types: [closed]
+    paths:
+      - 'pyproject.toml'
 
 jobs:
   publish:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -44,6 +44,15 @@ jobs:
           VERSION=$(poetry version -s)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Publishing version: $VERSION"
+
+      - name: Check if version tag exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "❌ 版本 v$VERSION 已存在，请更新 pyproject.toml 中的版本号"
+            exit 1
+          fi
+          echo "✅ 版本 v$VERSION 可以发布"
 
       - name: Build package
         run: poetry build

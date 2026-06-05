@@ -23,10 +23,31 @@ jobs:
           fi
           echo "✅ PR 标题格式正确: $TITLE"
 
+      - name: Check PR description
+        run: |
+          BODY="${{ github.event.pull_request.body }}"
+          if [ -z "$BODY" ]; then
+            echo "⚠️ PR 描述为空，建议添加描述说明改动内容"
+          else
+            echo "✅ PR 描述已填写"
+          fi
+
       - name: Check no direct main branch merge from non-main
         if: github.base_ref == 'main'
         run: |
           echo "ℹ️ 合并到 main 分支，请确保已通过 dev 分支验证"
+
+      - name: Check branch naming
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          PATTERN="^(feat|fix|refactor|docs|test|chore)/"
+          if [[ ! "$BRANCH" =~ $PATTERN ]]; then
+            echo "⚠️ 分支名不符合规范: '$BRANCH'"
+            echo "期望格式: <type>/<description>"
+            echo "类型: feat / fix / refactor / docs / test / chore"
+          else
+            echo "✅ 分支名格式正确: $BRANCH"
+          fi
 
       - name: Run tests
         uses: actions/setup-python@v5
