@@ -1,4 +1,0 @@
-# Remote 插件默认配置
-remote:
-  timeout: 30
-  retry: 3
