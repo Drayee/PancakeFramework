@@ -6,6 +6,13 @@ on:
     paths:
       - 'pyproject.toml'
       - 'pancake-*/pyproject.toml'
+  workflow_dispatch:
+    inputs:
+      force_publish:
+        description: '强制发布（忽略版本检查）'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
   # Job 1: 发布主框架
@@ -63,7 +70,11 @@ jobs:
         id: check-tag
         run: |
           VERSION="${{ steps.metadata.outputs.version }}"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+          FORCE="${{ inputs.force_publish || 'false' }}"
+          if [ "$FORCE" = "true" ]; then
+            echo "✅ 强制发布模式，跳过版本检查"
+            echo "published=true" >> $GITHUB_OUTPUT
+          elif git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "⚠️ 版本 v$VERSION 已存在，跳过主框架发布"
             echo "published=false" >> $GITHUB_OUTPUT
           else
@@ -119,6 +130,7 @@ jobs:
       - name: Detect plugin version changes
         id: detect-plugins
         run: |
+          FORCE="${{ inputs.force_publish || 'false' }}"
           PLUGINS=""
           for plugin_dir in pancake-*/; do
             plugin_name=$(basename "$plugin_dir")
@@ -128,7 +140,10 @@ jobs:
               if [ -n "$VERSION" ]; then
                 # 检查版本 tag 是否存在
                 TAG_NAME="${plugin_name}-v${VERSION}"
-                if ! git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+                if [ "$FORCE" = "true" ]; then
+                  echo "✅ $plugin_name 版本 $VERSION 强制发布"
+                  PLUGINS="${PLUGINS}${plugin_name}:${VERSION},"
+                elif ! git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
                   echo "✅ $plugin_name 版本 $VERSION 需要发布"
                   PLUGINS="${PLUGINS}${plugin_name}:${VERSION},"
                 else
