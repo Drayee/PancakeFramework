@@ -173,6 +173,110 @@ def Import(*classes: type):
     return decorator
 
 
+# ---- 类型转换装饰器 ----
+
+
+def _check_dough_type(cls, target_type):
+    """检查类是否已应用其他类型装饰器，防止冲突"""
+    existing = getattr(cls, '_dough_type', None)
+    if existing and existing != target_type:
+        raise TypeError(
+            f"类 {cls.__name__} 已应用 @{existing} 装饰器，"
+            f"不能同时应用 @{target_type} 装饰器"
+        )
+
+
+def _convert_class(cls, *bases, dough_type=None):
+    """将普通类转换为继承指定基类的 Dough 子类"""
+    from pancake.dough import DoughMeta
+
+    # 冲突检查
+    if dough_type:
+        _check_dough_type(cls, dough_type)
+
+    # 已经是目标类型则跳过
+    for base in bases:
+        if isinstance(cls, type(base)):
+            if dough_type:
+                cls._dough_type = dough_type
+            return cls
+
+    # 确保使用 DoughMeta 元类
+    if not isinstance(cls, DoughMeta):
+        # 创建新的子类，继承原类和目标基类
+        new_cls = type(cls.__name__, (cls,) + bases, {
+            '__module__': cls.__module__,
+            '__qualname__': cls.__qualname__,
+            '__doc__': cls.__doc__,
+        })
+    else:
+        # 已经是 Dough 子类，动态添加基类
+        cls.__bases__ = bases + cls.__bases__
+        new_cls = cls
+
+    if dough_type:
+        new_cls._dough_type = dough_type
+    return new_cls
+
+
+def service(cls):
+    """@service — 将类转换为 Service（类似 Spring @Service）"""
+    from pancake.base.service import Service
+    return _convert_class(cls, Service, dough_type="service")
+
+
+def configuration(cls):
+    """@configuration — 将类转换为 Configuration（类似 Spring @Configuration）"""
+    from pancake.base.configuration import Configuration
+    return _convert_class(cls, Configuration, dough_type="configuration")
+
+
+def function(func):
+    """@function — 将函数转换为 Function 类（类似 Spring @Bean 方法）
+
+    自动添加 @inject 注入依赖，包装为 Function 子类。
+
+    Usage:
+        @function
+        def my_func(service: MyService) -> str:
+            return service.get_data()
+
+        # 使用:
+        result = my_func()
+    """
+    from pancake.base.function import Function
+
+    # 对函数应用 inject
+    injected_func = inject(func)
+
+    # 动态创建 Function 子类
+    class_name = ''.join(word.capitalize() for word in func.__name__.split('_'))
+
+    def call(self, *args, **kwargs):
+        return injected_func(*args, **kwargs)
+
+    new_cls = type(class_name, (Function,), {
+        'call': call,
+        '__module__': func.__module__,
+        '__qualname__': func.__qualname__,
+        '__doc__': func.__doc__,
+        '_dough_type': 'function',
+    })
+
+    return new_cls
+
+
+def struct(cls):
+    """@struct — 将类转换为 Struct（类似 Spring @Component + dataclass）"""
+    from pancake.base.struct import Struct
+    from dataclasses import dataclass
+
+    # 先应用 dataclass，再转换类型
+    cls = dataclass(cls)
+    new_cls = _convert_class(cls, Struct, dough_type="struct")
+    return new_cls
+
+
 # ---- 自动注册到 muffin_flour ----
 
 def _register_to_muffin():
@@ -188,5 +292,9 @@ def _register_to_muffin():
     muffin_flour["Config"] = Config
     muffin_flour["DependsOn"] = DependsOn
     muffin_flour["Import"] = Import
+    muffin_flour["service"] = service
+    muffin_flour["configuration"] = configuration
+    muffin_flour["function"] = function
+    muffin_flour["struct"] = struct
 
 _register_to_muffin()
