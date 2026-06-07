@@ -172,6 +172,8 @@ class DishFactory:
             logger.warning(f"源码目录不存在: {src_dir}")
             return
 
+        from pancake.registry import flour
+
         files = self._scan_py_files(src_dir)
 
         # 预解析所有文件，按 _load_priority 排序
@@ -181,7 +183,7 @@ class DishFactory:
             if items:
                 min_priority = 50
                 for dec_name, _, _, _ in items:
-                    dec_obj = oven.muffin_flour.get(dec_name)
+                    dec_obj = flour.get(dec_name)
                     if dec_obj and hasattr(dec_obj, '_load_priority'):
                         min_priority = min(min_priority, dec_obj._load_priority)
                 file_items.append((min_priority, filepath, items))
@@ -212,7 +214,7 @@ class DishFactory:
 
     def build_all(self):
         """构建所有 Bean（调用 @Service 的 build 方法）"""
-        from pancake import oven
+        from pancake.registry import register_instance
 
         for name, cls in list(self._bean_classes.items()):
             if hasattr(cls, 'build') and callable(cls.build):
@@ -220,8 +222,7 @@ class DishFactory:
                     instance = cls.build()
                     if instance:
                         self._beans[name] = instance
-                        # 同步到 pancake_pie
-                        oven.pancake_pie.setdefault("Service", {})[name] = instance
+                        register_instance(name, instance)
                 except Exception as e:
                     logger.error(f"Bean '{name}' 构建失败: {e}")
 
@@ -240,7 +241,7 @@ class DishFactory:
     @staticmethod
     def _parse_file(filepath: str) -> list[tuple]:
         """解析文件中的装饰器"""
-        from pancake import oven
+        from pancake.registry import flour
 
         try:
             with open(filepath, "r", encoding="utf-8") as f:
@@ -267,7 +268,7 @@ class DishFactory:
                 elif isinstance(dec, ast.Call) and hasattr(dec.func, 'id'):
                     dec_name = dec.func.id
 
-                if dec_name in oven.muffin_flour:
+                if dec_name in flour:
                     results.append((dec_name, obj_type, obj_name, filepath))
         return results
 
@@ -337,15 +338,9 @@ class DishFactory:
 
     @staticmethod
     def _find_registered_object(dec_name: str, obj_name: str) -> Any:
-        """从 oven.pancake_dough 查找注册的对象"""
-        from pancake import oven
-
-        # 在各个注册表中查找
-        for key, registry in oven.pancake_dough.items():
-            if isinstance(registry, dict) and obj_name in registry:
-                return registry[obj_name]
-
-        return None
+        """从 registry 查找注册的对象"""
+        from pancake.registry import get_class
+        return get_class(obj_name)
 
 
 # 模块级默认实例

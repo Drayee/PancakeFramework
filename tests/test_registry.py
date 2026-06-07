@@ -1,76 +1,111 @@
-"""注册表测试 — 旧 PancakeRegistry / MuffinRegistry（向后兼容）"""
+"""注册表测试 — 统一注册表"""
 
 import pytest
-from pancake.oven.pancake import PancakeRegistry, create_registry
-from pancake.oven.muffin import MuffinRegistry, create_registry as create_muffin
+from pancake.registry import (
+    register_class, get_class, get_all_classes, clear_registry,
+    register_decorator, get_decorator, get_all_decorators,
+    register_instance, get_instance, get_all_instances,
+    set_runtime, get_runtime,
+    flour, water, egg, sugar,
+)
 
 
 @pytest.fixture
-def pancake_registry():
-    return PancakeRegistry()
+def clean():
+    """每个测试前清空注册表"""
+    clear_registry()
+    yield
+    clear_registry()
 
 
-@pytest.fixture
-def muffin_registry():
-    return MuffinRegistry()
+class TestClassRegistry:
+
+    def test_register_and_get(self, clean):
+        register_class("MyClass", str)
+        assert get_class("MyClass") is str
+
+    def test_get_nonexistent(self, clean):
+        assert get_class("Nonexistent") is None
+
+    def test_get_all(self, clean):
+        register_class("A", int)
+        register_class("B", float)
+        classes = get_all_classes()
+        assert "A" in classes
+        assert "B" in classes
+
+    def test_overwrite(self, clean):
+        register_class("X", int)
+        register_class("X", float)
+        assert get_class("X") is float
 
 
-class TestPancakeRegistry:
+class TestDecoratorRegistry:
 
-    def test_create_empty(self, pancake_registry):
-        assert pancake_registry.json == {}
-        assert pancake_registry.yaml == {}
-        assert pancake_registry.xml == {}
-        assert pancake_registry.dough == {}
-        assert pancake_registry.pie == {}
-        assert pancake_registry.other == {}
+    def test_register_and_get(self, clean):
+        register_decorator("my_dec", lambda: None)
+        assert get_decorator("my_dec") is not None
 
-    def test_independent_instances(self):
-        r1 = PancakeRegistry()
-        r2 = PancakeRegistry()
-        r1.yaml["key"] = "value"
-        assert "key" not in r2.yaml
-
-    def test_reset(self, pancake_registry):
-        pancake_registry.yaml["a"] = 1
-        pancake_registry.dough["Service"] = {}
-        pancake_registry.reset()
-        assert pancake_registry.yaml == {}
-        assert pancake_registry.dough == {}
-
-    def test_create_registry_factory(self):
-        r = create_registry()
-        assert isinstance(r, PancakeRegistry)
-        r2 = create_registry()
-        assert r is not r2
+    def test_has_decorator(self, clean):
+        register_decorator("exists", lambda: None)
+        assert has_decorator("exists")
+        assert not has_decorator("not_exists")
 
 
-class TestMuffinRegistry:
+class TestInstanceRegistry:
 
-    def test_create_empty(self, muffin_registry):
-        assert muffin_registry.flour == {}
-        assert muffin_registry.water == {}
-        assert muffin_registry.egg == {}
-        assert muffin_registry.sugar == {}
+    def test_register_and_get(self, clean):
+        obj = object()
+        register_instance("my_obj", obj)
+        assert get_instance("my_obj") is obj
 
-    def test_independent_instances(self):
-        r1 = MuffinRegistry()
-        r2 = MuffinRegistry()
-        r1.flour["Mapper"] = lambda cls: cls
-        assert "Mapper" not in r2.flour
+    def test_get_nonexistent(self, clean):
+        assert get_instance("nonexistent") is None
 
-    def test_reset(self, muffin_registry):
-        muffin_registry.flour["x"] = 1
-        muffin_registry.egg["y"] = 2
-        muffin_registry.reset()
-        assert muffin_registry.flour == {}
-        assert muffin_registry.egg == {}
+    def test_get_all(self, clean):
+        register_instance("a", 1)
+        register_instance("b", 2)
+        instances = get_all_instances()
+        assert instances["a"] == 1
+        assert instances["b"] == 2
 
-    def test_create_registry_factory(self):
-        r = create_muffin()
-        assert isinstance(r, MuffinRegistry)
 
-    def test_backward_compat_sugar_alias(self):
-        """muffin_suger 和 muffin_sugar 指向同一个 dict"""
+class TestRuntimeRegistry:
+
+    def test_set_and_get(self, clean):
+        set_runtime("key", "value")
+        assert get_runtime("key") == "value"
+
+    def test_default(self, clean):
+        assert get_runtime("missing", "default") == "default"
+
+
+class TestFlourWater:
+    """测试 flour/water (原 muffin) 注册表"""
+
+    def test_flour_is_dict(self):
+        assert isinstance(flour, dict)
+
+    def test_water_is_dict(self):
+        assert isinstance(water, dict)
+
+    def test_flour_contains_decorators(self):
+        """flour 应包含框架装饰器"""
+        assert "inject" in flour
+        assert "Singleton" in flour
+
+    def test_water_contains_classes(self):
+        """water 应包含框架类"""
+        assert "DoughFactory" in water
+        assert "Service" in water
+
+    def test_backward_compat_aliases(self):
+        """muffin_flour/water 应与 flour/water 相同"""
         from pancake.oven import muffin
-        assert muffin.muffin_suger is muffin.muffin_sugar
+        assert muffin.muffin_flour is flour
+        assert muffin.muffin_water is water
+
+
+def has_decorator(name: str) -> bool:
+    from pancake.registry import has_decorator as _has
+    return _has(name)
