@@ -97,19 +97,30 @@ def start_config_watcher(interval: float = 5.0) -> ConfigWatcher:
         _watcher.watch_dir(json_dir)
 
     def reload_config(changed_files):
-        """重新加载配置到 settings"""
+        """重新加载配置到 settings
+
+        使用 settings.replace() 替换而非 merge，
+        确保从配置文件中删除的 key 不会残留。
+        """
         from pancake import settings
         from pancake.resource import yml, json
 
-        for filepath in changed_files:
-            if filepath.endswith(('.yaml', '.yml')):
-                new_data = yml.yaml_init()
-                settings.init(new_data)
-                logger.info("YAML 配置已重载")
-            elif filepath.endswith('.json'):
-                new_data = json.json_init()
-                settings.init(new_data)
-                logger.info("JSON 配置已重载")
+        # 收集所有配置源
+        all_new_data = {}
+
+        # 重新加载 YAML
+        yaml_data = yml.yaml_init()
+        if yaml_data:
+            all_new_data.update(yaml_data)
+
+        # 重新加载 JSON
+        json_data = json.json_init()
+        if json_data:
+            all_new_data.update(json_data)
+
+        # 替换配置（清除旧 key）
+        settings.replace(all_new_data)
+        logger.info(f"配置已热重载 ({len(all_new_data)} 个 key)")
 
     _watcher.on_change(reload_config)
     _watcher.start()

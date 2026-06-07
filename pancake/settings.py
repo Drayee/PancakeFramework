@@ -64,6 +64,16 @@ def init(config: dict = None):
         _user_config.update(config)
 
 
+def replace(config: dict = None):
+    """
+    替换配置（用于热重载）
+    清空旧的用户配置，应用新的配置。
+    确保被删除的 key 不会残留。
+    """
+    global _user_config
+    _user_config = dict(config) if config else {}
+
+
 def set_project_root(path: str):
     """设置项目根目录"""
     global _project_root
