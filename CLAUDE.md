@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> Pancake Framework — 装饰器驱动的 Python Web 框架，集成 IoC、MyBatis Plus ORM 和 AI 工作流。
+> Pancake Framework — 装饰器驱动的 Python 框架，集成 IoC、MyBatis Plus ORM 和 AI 工作流。
 
 ## 项目概述
 
@@ -10,7 +10,6 @@ Pancake 是一个全栈 Python 框架，核心理念是"零 import"——通过 
 
 - Python 3.10+
 - Poetry 依赖管理
-- FastAPI + Uvicorn (Web 服务)
 - databases + aiosqlite (异步 ORM)
 - PyYAML + python-dotenv (配置)
 - 可选: LangGraph、gRPC、Redis、aiohttp、OpenAI、Gemini、ChromaDB
@@ -20,53 +19,47 @@ Pancake 是一个全栈 Python 框架，核心理念是"零 import"——通过 
 ```
 pancake/                    # 框架核心
 ├── __init__.py             # 入口引导: init() -> initialize 检查 -> 加载资源
-├── run.py                  # 启动流水线: load_config -> load_ovenware -> oven_init -> load_dish -> build -> run_loop
-├── oven/                   # 全局注册表
-│   ├── pancake.py          # pancake_yaml/json/dough/pie/other — 存储配置、类、实例
-│   ├── muffin.py           # muffin_flour/water/egg/suger — 存储装饰器、类、方法
-│   └── default.py          # 默认初始化: 加载 YAML/JSON，初始化 dough/pie/other
+├── run.py                  # 启动流水线: load_config -> load_ovenware -> load_dish -> build -> run_loop
 ├── ovenware/               # 插件模块 (自动发现加载)
-│   ├── base.py             # @Service 装饰器
-│   ├── inject.py           # 统一依赖注入: IoCContainer + @auto_inject + @inject
-│   ├── web.py              # FastAPI: @get_controller / @post_controller / @websocket_controller
-│   ├── embed.py            # builtins 注入 (init_order=-10, 最先加载)
-│   ├── broker.py           # 消息队列: @event_node / @on_event, SimpleBroker / RedisBroker
-│   ├── lifecycle.py        # 生命周期: Lifecycle 基类, @lifecycle_node, LifecycleManager
-│   ├── remote.py           # 远程调用: @remote_node, HttpRemote / GrpcRemote
-│   ├── redis_cache.py      # Redis 缓存: @cached, CacheGuard（防穿透/雪崩/击穿）
-│   ├── ai_model.py         # AI 模块: ChatModel, ShortTermMemory, LongTermMemory, RAG
-│   ├── external_plugin.py  # 外部插件加载 (EXTERNAL_PLUGIN_DIRS 环境变量)
-│   ├── mybatis/            # MyBatis Plus ORM
-│   │   ├── mapper.py       # @Mapper, BaseMapper, @Select/@Insert/@Update/@Delete
-│   │   ├── wrapper.py      # QueryWrapper / UpdateWrapper 链式查询
-│   │   ├── sql_parser.py   # #{param} 绑定 + 动态 SQL (<if>/<where>/<set>/<foreach>/<choose>)
-│   │   ├── connection.py   # 异步数据库连接管理 (databases 库)
-│   │   ├── dialect.py      # 数据库方言: SQLite/PostgreSQL/MySQL 类型映射
-│   │   ├── migration.py    # 数据库迁移工具: 版本管理、自动迁移
-│   │   └── config.py       # mybatis 配置加载
-│   └── langgraph/          # AI 工作流核心
-│       └── core.py         # @langgraph_node / @langgraph_edge
+│   ├── __init__.py         # InitAction 插件基类
+│   └── broker.py           # 消息队列: @event_node / @on_event, SimpleBroker / RedisBroker
+├── registry.py             # 统一注册表: 类、装饰器、实例、运行时数据
+├── dough.py                # Bean 基类: Dough, DoughMeta, Scope
+├── decorators.py           # 装饰器: @Singleton, @Prototype, @Lazy, @inject, @Config 等
+├── base/                   # 基类模块
+│   ├── service.py          # Service 基类
+│   ├── configuration.py    # Configuration 基类
+│   ├── function.py         # Function 基类
+│   └── struct.py           # Struct 基类
+├── factory/                # 工厂模块
+│   ├── dough_factory.py    # DoughFactory: Bean 工厂
+│   └── package_manager.py  # PackageManager: 依赖检查
 ├── builder/                # 构建流水线
 │   ├── build.py            # 实例化所有 Service，执行 BuildOrder
 │   ├── load_dlc.py         # 自动发现 ovenware/ 下的插件，按 init_order 排序加载
 │   └── load_src.py         # 扫描 src/ 下的 .py 文件，按 _load_priority 排序注册
 ├── settings.py             # 集中配置管理（路径、服务、数据库）
-├── cli.py                  # CLI 命令行工具 (pancake create/run/check/build)
+├── cli/                    # CLI 命令行工具 (pancake create/run/check/build)
+│   ├── __init__.py         # main() argparse 入口
+│   ├── project.py          # init/create/check/run/build 命令
+│   ├── plugin.py           # plugin list/add/remove/clear 命令
+│   ├── config.py           # config show 命令
+│   ├── audit.py            # audit 命令
+│   ├── misc.py             # version/cover/update/install 命令
+│   └── utils.py            # get_version 工具函数
 ├── initialize/             # 环境检查
 │   ├── check_env.py        # Poetry/依赖自动安装
 │   ├── check_struct.py     # 项目结构完整性检查
-│   └── check_dlc.py        # 插件检查
+│   └── print_ico.py        # 封面打印
 ├── resource/               # 配置加载器
 │   ├── yml.py              # YAML 加载 + ${占位符} 解析 + 扁平化 key
 │   ├── json.py             # JSON 加载
-│   ├── config.py           # dotenv 加载
 │   ├── config_watcher.py   # 配置热重载 (文件变更监听)
 │   └── logging.py          # 日志配置
 └── tool/
     └── progress_show.py    # 进度条工具
 
 src/                        # 用户代码目录
-├── controller.py           # Web 控制器示例
 ├── mapper/                 # Mapper 层
 ├── resource/yaml/          # YAML 配置 (service.yaml, mybatis.yaml)
 └── resource/db/            # SQLite 数据库
@@ -79,40 +72,27 @@ tests/                      # 测试
 1. `main.py` -> `pancake.run()`
 2. `pancake/__init__.py` -> `init()`: 环境检查、结构检查、加载 resource 配置
 3. `run.py` -> 按顺序执行:
-   - `load_config`: 加载 YAML/JSON 配置到 `oven.pancake_yaml/json`
+   - `load_config`: 加载 YAML/JSON 配置到 settings
    - `load_ovenware`: 自动发现并加载 ovenware/ 插件 (按 `init_order` 排序)
-   - `oven_init`: 默认后处理
    - `load_dish`: 扫描 src/ 下的用户代码，按 `_load_priority` 排序执行
-   - `build`: 实例化 Service，执行 Builder
-   - `run_loop_methods`: 运行 loop_method (如 uvicorn Web 服务器)
+   - `build`: 实例化 Bean，调用生命周期方法
+   - `run_loop_methods`: 运行 loop_method
 
 ## 插件系统
 
 ### 加载优先级
 
-- `init_order`: 控制 ovenware 插件初始化顺序 (值小先加载, embed=-10, mybatis=1, web=50)
-- `_load_priority`: 控制 src/ 用户代码加载顺序 (Mapper=10, controller 默认=50)
+- `init_order`: 控制 ovenware 插件初始化顺序 (值小先加载)
+- `_load_priority`: 控制 src/ 用户代码加载顺序
 - `build_order`: 控制 build 阶段执行顺序
 
 ### 自定义插件
 
 在 `pancake/ovenware/` 下创建 `.py` 文件或子包，定义 `Main` 类 (含 `init_order`, `build()`, 可选 `check()`, `loop_method()`)。或通过 `EXTERNAL_PLUGIN_DIRS` 环境变量加载外部插件。
 
-禁用内置插件: 在任意 YAML 中配置 `framework.disable_dlc: [langgraph, external_plugin]`
+禁用内置插件: 在任意 YAML 中配置 `framework.disable_dlc: [plugin_name]`
 
 ## 核心用法
-
-### Web 控制器 (无需 import)
-
-```python
-@get_controller("/hello")
-def hello():
-    return {"message": "Hello"}
-
-@post_controller("/users")
-async def create_user(name: str, age: int):
-    return {"id": await UserMapper().insert(name=name, age=age)}
-```
 
 ### MyBatis Plus Mapper (无需 import)
 
@@ -185,9 +165,9 @@ answer = await rag.ask("什么是 Pancake？")
 
 - 中文注释和日志信息
 - 使用 `logging` 模块，不要用 `print`
-- 装饰器命名: `snake_case` (如 `get_controller`, `auto_inject`)
+- 装饰器命名: `snake_case` (如 `auto_inject`, `event_node`)
 - 类命名: `PascalCase` (如 `BaseMapper`, `IoCContainer`)
-- 所有 ovenware 插件的装饰器/类需注册到 `oven.muffin_flour` 以便 embed 自动注入
+- 所有 ovenware 插件的装饰器/类需注册到 `registry.flour` 以便 embed 自动注入
 
 ### 安全
 
@@ -265,7 +245,7 @@ git commit -m "<描述>"
 - 如果不确定某个文件是否被其他实例修改，用 `git diff` 检查后再决定
 
 **推荐分工方式:**
-- 不同实例负责不重叠的目录或文件（如一个改 `web.py`，一个改 `mybatis/`）
+- 不同实例负责不重叠的目录或文件
 - 或使用不同分支: `git checkout -b feat/xxx`，各自开发后合并
 
 ### 测试
@@ -286,19 +266,18 @@ python main.py
 
 服务默认监听 `http://127.0.0.1:8080`
 
-## 全局注册表 (oven 模块)
+## 全局注册表 (registry 模块)
 
 | 注册表 | 用途 | 示例键 |
 |--------|------|--------|
-| `pancake_yaml` | YAML 配置 (扁平化) | `service.title`, `mybatis.database.url` |
-| `pancake_json` | JSON 配置 | - |
-| `pancake_dough` | 注册的类 | `Service`, `Mapper`, `langgraph_node` |
-| `pancake_pie` | 实例化的对象 | `Service.UserMapper` |
-| `pancake_other` | 运行时数据 | `path`, `langgraph_app` |
-| `muffin_flour` | 装饰器 | `Mapper`, `get_controller`, `inject` |
-| `muffin_water` | 类 | `IoCContainer`, `Lifecycle`, `Scope` |
-| `muffin_egg` | 方法/构建器 | `Builder`, `LoopMethod`, `BuildOrder` |
-| `muffin_sugar` | 其他 | `container` |
+| `flour` | 装饰器 | `Mapper`, `inject`, `event_node` |
+| `water` | 类 | `IoCContainer`, `Scope`, `DoughFactory` |
+| `egg` | 方法/构建器 | `Builder`, `LoopMethod`, `BuildOrder` |
+| `sugar` | 其他 | `container` |
+| `_class_registry` | 注册的类 | `UserMapper`, `MyService` |
+| `_instance_registry` | 实例化的对象 | `UserMapper`, `SimpleBroker` |
+| `_decorator_registry` | 装饰器注册表 | `Mapper`, `inject` |
+| `_runtime_registry` | 运行时数据 | `langgraph_app` |
 
 ## 配置项
 

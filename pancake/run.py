@@ -85,7 +85,7 @@ def build_all():
         try:
             loop.run_until_complete(builder.build.async_build())
         finally:
-            # 不关闭循环，留给后续 uvicorn 使用
+            # 不关闭循环，留给后续 loop_method 使用
             pass
 
 

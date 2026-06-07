@@ -99,12 +99,6 @@ class TestFlourWater:
         assert "DoughFactory" in water
         assert "Service" in water
 
-    def test_backward_compat_aliases(self):
-        """muffin_flour/water 应与 flour/water 相同"""
-        from pancake.oven import muffin
-        assert muffin.muffin_flour is flour
-        assert muffin.muffin_water is water
-
 
 def has_decorator(name: str) -> bool:
     from pancake.registry import has_decorator as _has

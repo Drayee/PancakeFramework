@@ -35,7 +35,8 @@ def init():
     progress.finish()
 
     # 初始化 dotenv 和 logging
-    from resource import config  # noqa: F401
+    from dotenv import load_dotenv
+    load_dotenv()
     import resource.logging as resource_logging  # noqa: F401
 
 
