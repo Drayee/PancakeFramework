@@ -73,7 +73,6 @@ muffin_suger = _DeprecatedAlias(muffin_sugar, "muffin_suger", "muffin_sugar")
 
 
 def create_registry():
-    """向后兼容 — 创建新的独立注册表（用于测试）"""
-    from pancake.registry import PancakeRegistry  # noqa 这里可能需要调整
+    """向后兼容 — 已弃用"""
     warnings.warn("create_registry() 已弃用，使用 registry.clear_registry()", DeprecationWarning)
     return None

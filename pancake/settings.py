@@ -87,16 +87,24 @@ def get_project_root() -> str:
     return os.getcwd()
 
 
-def get(key: str, default=None):
+_UNSET = object()
+
+
+def get(key: str, default=_UNSET):
     """
     获取配置值
-    优先级：用户配置 > 传入默认值 > 内置默认值
+    优先级：用户配置 > 内置默认值 > 传入默认值
+
+    如果 key 存在于用户配置或内置默认值中，返回对应值。
+    否则返回传入的 default（如果提供），或 None。
     """
     if key in _user_config:
         return _user_config[key]
-    if default is not None:
+    if key in _DEFAULTS:
+        return _DEFAULTS[key]
+    if default is not _UNSET:
         return default
-    return _DEFAULTS.get(key)
+    return None
 
 
 def get_path(name: str) -> str:

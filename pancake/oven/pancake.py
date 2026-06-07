@@ -26,11 +26,6 @@ pancake_json = _config.json
 pancake_yaml = _config.yaml
 pancake_xml = _config.xml
 
-# 向后兼容别名（旧代码可能引用）
-pancake_dough = {}
-pancake_pie = {}
-pancake_other = {}
-
 
 def create_config() -> PancakeConfig:
     """创建新的独立配置（用于测试）"""
