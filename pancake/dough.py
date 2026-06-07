@@ -17,13 +17,31 @@ class Scope(Enum):
 class DoughMeta(ABCMeta):
     """元类：自动注册类到全局注册表
 
-    跳过名为 "Dough" 的类（基类自身）
+    跳过名为 "Dough" 的类（基类自身）。
+    设置 _no_register = True 可跳过自动注册（用于测试、临时子类等）。
+    类名冲突时发出警告，后者覆盖前者。
     """
     def __new__(mcs, name, bases, namespace):
         cls = super().__new__(mcs, name, bases, namespace)
-        if name != "Dough":
-            from pancake.registry import register_class
-            register_class(name, cls)
+
+        # 跳过基类自身和显式标记不注册的类
+        if name == "Dough" or namespace.get("_no_register", False):
+            return cls
+
+        from pancake.registry import register_class, get_class
+
+        # 类名冲突警告
+        existing = get_class(name)
+        if existing is not None and existing is not cls:
+            import warnings
+            warnings.warn(
+                f"类名冲突: '{name}' 已注册 (来自 {existing.__module__}), "
+                f"被 {cls.__module__} 中的同名类覆盖",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        register_class(name, cls)
         return cls
 
 
