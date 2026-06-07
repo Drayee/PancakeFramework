@@ -1,7 +1,0 @@
-# Redis 插件默认配置
-redis:
-  url: "redis://localhost:6379"
-  db: 0
-  password: null
-  key_prefix: "pancake:"
-  default_ttl: 3600

@@ -138,91 +138,91 @@ pancake/
 - [x] 配置热重载
 - [x] 分页 `Page` 对象抽象
 - [x] OpenTelemetry / 指标集成
-- [x] 优雅关闭 + 信号处理
+- [x] 优雅关闭（信号处理）
 - [x] WebSocket 支持
 - [x] 限流中间件
 - [x] API 文档自动生成
-- [x] 更多数据库方言 (SQLite/PG/MySQL 类型映射)
+- [x] 多数据库方言（SQLite/PG/MySQL 类型映射）
 - [x] 连接池健康检查和自动重连
 - [x] JWT 认证支持
-- [x] 定时任务 (cron-like)
-- [x] CLI 交互式代码 (REPL)
-- [x] Bean 生命周期回调 — `on_init`(@PostConstruct), `on_destroy`(@PreDestroy)
+- [x] 定时任务（cron）
+- [x] CLI 交互式代码（REPL）
+- [x] Bean 生命周期回调 — `on_init`(@PostConstruct)、`on_destroy`(@PreDestroy)
 - [x] 懒加载 — `@Lazy` 延迟 Bean 创建
-- [x] 依赖解析 — `@DependsOn` 拓扑排序, `@Import` 自动注册
+- [x] 依赖解析 — `@DependsOn` 拓扑排序、`@Import` 自动注册
 - [x] 异步生命周期 — 所有生命周期方法支持 `async def`
 - [ ] 自动配置 — 自动检测依赖并配置默认值
-- [ ] Profiles — 环境特定配置 (dev / test / prod)
-- [ ] 条件 Bean — `@ConditionalOnProperty`, `@ConditionalOnClass`
-- [ ] 事件系统 — `@EventListener`, 应用事件 (ContextRefreshed 等)
-- [ ] 属性绑定 — 自动映射 YAML/ENV 到 dataclass (`@ConfigurationProperties`)
+- [ ] Profiles — 环境特定配置（dev / test / prod）
+- [ ] 条件 Bean — `@ConditionalOnProperty`、`@ConditionalOnClass`
+- [ ] 事件系统 — `@EventListener`、应用事件（ContextRefreshed 等）
+- [ ] 属性绑定 — YAML/ENV 自动映射到 dataclass（`@ConfigurationProperties`）
 
 ### Web / REST
 
-- [ ] CORS 配置 — 全局和路由级 CORS 策略
-- [ ] API 版本控制 — `/api/v1/users`, `/api/v2/users`
-- [ ] 异常处理器 — `@ExceptionHandler`, 全局错误响应
-- [ ] 请求日志中间件 — 自动记录 method, path, status, duration
+- [ ] CORS 配置 — 全局和按路由 CORS 策略
+- [ ] API 版本控制 — `/api/v1/users`、`/api/v2/users`
+- [ ] 异常处理器 — `@ExceptionHandler`、全局错误响应
+- [ ] 请求日志中间件 — 自动记录 method、path、status、duration
 - [ ] 响应压缩 — gzip/brotli 中间件
-- [ ] 文件上传 — `@multipart`, multipart/form-data 处理
+- [ ] 文件上传 — `@multipart`、multipart/form-data 处理
 - [ ] Server-Sent Events — `@sse_controller` 实时推送
-- [ ] 请求体校验 — Pydantic 风格 `@Valid` 请求模型校验
-- [ ] 内容协商 — 根据 Accept header 返回 JSON / XML
-- [ ] 异步路由处理 — 自动检测 async vs sync 函数
+- [ ] 请求体验证 — Pydantic 风格 `@Valid` 请求模型
+- [ ] 内容协商 — 根据 Accept 头返回 JSON / XML
+- [ ] 异步路由 — 自动检测 async vs sync 函数
 - [ ] 静态文件服务 — 内置静态目录挂载
 - [ ] 请求 ID — 自动生成和传播 `X-Request-Id`
 
 ### 安全
 
 - [x] OAuth2 支持 — OAuth2 客户端和资源服务器
-- [x] API Key 认证 — `@api_key_required` 基于 header 的认证
+- [x] API Key 认证 — `@api_key_required` 基于头部的认证
 - [x] 密码哈希 — bcrypt/argon2 集成
-- [x] CSRF 防护 — 基于 token 的 CSRF 表单提交保护
-- [x] 安全头 — 自动添加 HSTS, X-Frame-Options, CSP
+- [x] CSRF 保护 — 基于 Token 的 CSRF 表单提交保护
+- [x] 安全头部 — 自动添加 HSTS、X-Frame-Options、CSP
 - [x] IP 白名单/黑名单 — 基于中间件的 IP 过滤
-- [x] 会话管理 — 服务端 session, Redis/内存存储
+- [x] 会话管理 — 服务端会话，支持 Redis/内存存储
 
 ### 数据 / ORM
 
-- [ ] 事务传播 — REQUIRED, REQUIRES_NEW, NESTED
-- [ ] 软删除 — `@SoftDelete`, `deleted_at` 列支持
-- [ ] 自动时间戳 — `created_at`, `updated_at` 自动填充
+- [ ] 事务传播 — REQUIRED、REQUIRES_NEW、NESTED
+- [ ] 软删除 — `@SoftDelete`、`deleted_at` 列支持
+- [ ] 自动时间戳 — `created_at`、`updated_at` 自动填充
 - [ ] 乐观锁 — version 字段并发更新安全
 - [ ] 多数据源 — 同时连接多个数据库
 - [ ] 数据库种子 — 启动时自动插入初始数据
 - [ ] 查询日志 — SQL 语句日志及执行时间
 - [ ] 原始 SQL 辅助 — `db.execute_raw(sql)` 带安全检查
-- [ ] 关联映射 — 一对多、多对多 懒加载/急加载
+- [ ] 关系映射 — 一对多、多对多懒加载/急加载
 
 ### AOP / 中间件
 
-- [ ] AOP (面向切面编程) — `@Before`, `@After`, `@Around` 切入点
-- [ ] 重试机制 — `@Retry(max=3, delay=1)` 重试不稳定操作
+- [ ] AOP（面向切面编程）— `@Before`、`@After`、`@Around` 切点
+- [ ] 重试机制 — `@Retry(max=3, delay=1)` 不稳定操作
 - [ ] 熔断器 — `@CircuitBreaker` 容错
-- [ ] 缓存抽象 — `@Cacheable`, `@CacheEvict` (多后端: 内存/Redis)
+- [ ] 缓存抽象 — `@Cacheable`、`@CacheEvict`（多后端：内存/Redis）
 - [ ] 异步执行 — `@Async` 非阻塞后台任务
 - [ ] 方法计时 — `@Timed` 方法执行指标
 - [ ] 分布式锁 — `@DistributedLock` 并发访问控制
 
 ### 可观测性
 
-- [ ] 结构化日志 — JSON 日志输出 + 关联 ID
-- [ ] 健康指标 — 自定义健康检查 (DB, Redis, 外部 API)
-- [ ] 分布式追踪 — OpenTelemetry trace 上下文传播
+- [ ] 结构化日志 — JSON 日志输出带关联 ID
+- [ ] 健康指标 — 自定义健康检查（DB、Redis、外部 API）
+- [ ] 分布式追踪 — OpenTelemetry 追踪上下文传播
 - [ ] 日志级别 API — 运行时通过 REST 端点修改日志级别
 
 ### DevOps / CLI
 
-- [ ] 项目脚手架 — `pancake create` 模板 (API / Fullstack / Microservice)
-- [ ] 代码生成 — 根据表结构自动生成 Mapper/Controller
-- [ ] DevTools — 代码变更自动重启 (watchdog)
+- [ ] 项目脚手架 — `pancake create` 模板（API / 全栈 / 微服务）
+- [ ] 代码生成 — 从表结构自动生成 Mapper/Controller
+- [ ] DevTools — 代码变更自动重启（watchdog）
 - [ ] Docker 支持 — 自动生成 Dockerfile 和 docker-compose.yml
-- [ ] 配置校验 — 启动时校验必需配置项
-- [ ] 试运行 — `pancake check` 完整依赖和配置校验
+- [ ] 配置验证 — 启动时验证必需配置项
+- [ ] 试运行 — `pancake check` 完整依赖和配置验证
 
 ### 性能
 
-- [ ] C 扩展 — 将热路径模块 (sql_parser, wrapper, jwt) 转为 C 加速
+- [ ] C 扩展 — 将热路径模块（sql_parser、wrapper、jwt）转为 C 加速
 
 ## 测试
 
