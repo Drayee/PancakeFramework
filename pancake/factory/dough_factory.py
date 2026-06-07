@@ -1,30 +1,30 @@
 """
 DoughFactory — Bean 工厂
-替代原有 oven 模块，统一管理所有 Bean
+直接读取 registry._class_registry，不维护独立的 _classes
 """
 
 import asyncio
 import inspect
 import logging
 from pancake.dough import Dough, Scope, _call_lifecycle
+from pancake.registry import get_class, get_all_classes, register_instance, get_instance, get_all_instances
 
 logger = logging.getLogger(__name__)
 
 
 class DoughFactory:
-    """Bean 工厂 — 管理 Bean 的注册、创建、生命周期
+    """Bean 工厂 — 管理 Bean 的创建、生命周期
 
-    支持多个独立工厂实例。
-    生命周期方法支持同步和异步实现。
+    类注册表统一在 registry._class_registry，
+    DoughFactory 直接读取，不维护独立副本。
     """
 
     _factories: dict[str, "DoughFactory"] = {}
 
     def __init__(self, name: str = "default"):
         self.name = name
-        self._classes: dict[str, type] = {}
-        self._instances: dict[str, Dough] = {}
         self._load_order: list[str] = []
+        # 实例存储在 registry，这里只保留引用
         DoughFactory._factories[name] = self
 
     @staticmethod
@@ -35,37 +35,37 @@ class DoughFactory:
         return DoughFactory._factories[name]
 
     def register(self, cls: type):
-        """注册 Bean 类"""
+        """注册 Bean 类（写入 registry）"""
+        from pancake.registry import register_class
         name = cls.__name__
-        self._classes[name] = cls
+        register_class(name, cls)
         logger.debug(f"注册 Bean: {name}")
 
     def register_instance(self, name: str, instance: object):
         """注册已创建的实例"""
-        self._instances[name] = instance
+        register_instance(name, instance)
         logger.debug(f"注册实例: {name}")
 
     def resolve(self, name: str) -> Dough:
         """获取 Bean 实例"""
         # 已有实例
-        if name in self._instances:
-            instance = self._instances[name]
+        instance = get_instance(name)
+        if instance is not None:
             # Prototype 每次返回新实例
             if hasattr(instance, '_scope') and instance._scope == Scope.PROTOTYPE:
-                cls = self._classes.get(name)
+                cls = get_class(name)
                 if cls:
                     return cls()
             return instance
 
         # Lazy 创建
-        cls = self._classes.get(name)
+        cls = get_class(name)
         if cls is None:
             raise ValueError(f"未注册的 Bean: {name}")
 
         if cls._scope == Scope.LAZY:
             instance = cls()
-            self._instances[name] = instance
-            # Lazy 的 on_init 需要在事件循环中调用
+            register_instance(name, instance)
             return instance
 
         raise ValueError(f"Bean {name} 尚未创建，请先调用 create_all()")
@@ -76,8 +76,10 @@ class DoughFactory:
         使用 Kahn 算法：先计算入度，再依次取出入度为 0 的节点。
         LAZY Bean 不参与排序（延迟创建）。
         """
+        all_classes = get_all_classes()
+
         deps: dict[str, list[str]] = {}
-        for name, cls in self._classes.items():
+        for name, cls in all_classes.items():
             if cls._scope == Scope.LAZY:
                 continue
             deps[name] = getattr(cls, '_depends_on', [])
@@ -115,19 +117,21 @@ class DoughFactory:
 
         如果生命周期方法是 async 的，请使用 async_create_all()。
         """
-        for name, cls in list(self._classes.items()):
+        all_classes = get_all_classes()
+
+        for name, cls in list(all_classes.items()):
             imports = getattr(cls, '_imports', [])
             for imported_cls in imports:
-                if imported_cls.__name__ not in self._classes:
+                if imported_cls.__name__ not in get_all_classes():
                     self.register(imported_cls)
 
         order = self._resolve_dependency_order()
 
         for name in order:
-            cls = self._classes[name]
+            cls = get_class(name)
             try:
                 instance = cls()
-                self._instances[name] = instance
+                register_instance(name, instance)
                 self._load_order.append(name)
                 # 同步调用 on_init（仅当方法不是 async 时）
                 method = getattr(instance, 'on_init', None)
@@ -141,7 +145,7 @@ class DoughFactory:
     def startup_all(self):
         """执行所有 Bean 的 on_start（同步版本）"""
         for name in self._load_order:
-            instance = self._instances.get(name)
+            instance = get_instance(name)
             if instance:
                 try:
                     method = getattr(instance, 'on_start', None)
@@ -155,7 +159,7 @@ class DoughFactory:
     def shutdown_all(self):
         """逆序执行 on_stop 和 on_destroy（同步版本）"""
         for name in reversed(self._load_order):
-            instance = self._instances.get(name)
+            instance = get_instance(name)
             if instance:
                 try:
                     on_stop = getattr(instance, 'on_stop', None)
@@ -168,7 +172,6 @@ class DoughFactory:
                 except Exception as e:
                     logger.error(f"关闭 Bean {name} 失败: {e}")
 
-        self._instances.clear()
         self._load_order.clear()
 
     # ---- 异步 API ----
@@ -180,19 +183,21 @@ class DoughFactory:
         2. 拓扑排序确定创建顺序
         3. 按顺序创建 Bean 并调用 on_init
         """
-        for name, cls in list(self._classes.items()):
+        all_classes = get_all_classes()
+
+        for name, cls in list(all_classes.items()):
             imports = getattr(cls, '_imports', [])
             for imported_cls in imports:
-                if imported_cls.__name__ not in self._classes:
+                if imported_cls.__name__ not in get_all_classes():
                     self.register(imported_cls)
 
         order = self._resolve_dependency_order()
 
         for name in order:
-            cls = self._classes[name]
+            cls = get_class(name)
             try:
                 instance = cls()
-                self._instances[name] = instance
+                register_instance(name, instance)
                 self._load_order.append(name)
                 await _call_lifecycle(instance, 'on_init')
                 logger.debug(f"创建 Bean: {name}")
@@ -203,7 +208,7 @@ class DoughFactory:
     async def async_startup_all(self):
         """执行所有 Bean 的 on_start（异步版本）"""
         for name in self._load_order:
-            instance = self._instances.get(name)
+            instance = get_instance(name)
             if instance:
                 try:
                     await _call_lifecycle(instance, 'on_start')
@@ -215,7 +220,7 @@ class DoughFactory:
     async def async_shutdown_all(self):
         """逆序执行 on_stop 和 on_destroy（异步版本）"""
         for name in reversed(self._load_order):
-            instance = self._instances.get(name)
+            instance = get_instance(name)
             if instance:
                 try:
                     await _call_lifecycle(instance, 'on_stop')
@@ -224,19 +229,14 @@ class DoughFactory:
                 except Exception as e:
                     logger.error(f"关闭 Bean {name} 失败: {e}")
 
-        self._instances.clear()
         self._load_order.clear()
 
     # ---- 查询 API ----
 
-    def build_all(self):
-        """执行所有 Bean 的 build（兼容旧插件）"""
-        pass
-
     def get_all_instances(self) -> dict[str, Dough]:
         """获取所有已创建的实例"""
-        return dict(self._instances)
+        return get_all_instances()
 
     def get_all_classes(self) -> dict[str, type]:
         """获取所有注册的类"""
-        return dict(self._classes)
+        return get_all_classes()

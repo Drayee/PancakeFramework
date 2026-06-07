@@ -277,24 +277,21 @@ def struct(cls):
     return new_cls
 
 
-# ---- 自动注册到 muffin_flour ----
+# ---- 注册装饰器到 registry.flour，供 embed 注入 builtins ----
 
-def _register_to_muffin():
-    """将所有装饰器注册到 muffin_flour，供 DoughMeta 零 import 注入"""
-    from pancake.oven.muffin import muffin_flour
-    muffin_flour["DoughDecorator"] = DoughDecorator
-    muffin_flour["Singleton"] = Singleton
-    muffin_flour["Prototype"] = Prototype
-    muffin_flour["Lazy"] = Lazy
-    muffin_flour["Maker"] = Maker
-    muffin_flour["noMaker"] = noMaker
-    muffin_flour["inject"] = inject
-    muffin_flour["Config"] = Config
-    muffin_flour["DependsOn"] = DependsOn
-    muffin_flour["Import"] = Import
-    muffin_flour["service"] = service
-    muffin_flour["configuration"] = configuration
-    muffin_flour["function"] = function
-    muffin_flour["struct"] = struct
+from pancake.registry import flour
 
-_register_to_muffin()
+flour["DoughDecorator"] = DoughDecorator
+flour["Singleton"] = Singleton
+flour["Prototype"] = Prototype
+flour["Lazy"] = Lazy
+flour["Maker"] = Maker
+flour["noMaker"] = noMaker
+flour["inject"] = inject
+flour["Config"] = Config
+flour["DependsOn"] = DependsOn
+flour["Import"] = Import
+flour["service"] = service
+flour["configuration"] = configuration
+flour["function"] = function
+flour["struct"] = struct

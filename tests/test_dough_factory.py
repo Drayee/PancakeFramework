@@ -3,9 +3,11 @@
 import pytest
 from pancake.dough import Dough, Scope
 from pancake.factory.dough_factory import DoughFactory
+from pancake.registry import get_class, clear_registry
 
 
 class MyBean(Dough):
+    _no_register = True  # 避免测试时自动注册
     def __init__(self):
         self.value = 42
 
@@ -14,6 +16,7 @@ class TestDoughFactory:
 
     def setup_method(self):
         DoughFactory._factories.clear()
+        clear_registry()
 
     def test_get_default_factory(self):
         factory = DoughFactory.get()
@@ -31,7 +34,7 @@ class TestDoughFactory:
     def test_register_class(self):
         factory = DoughFactory.get()
         factory.register(MyBean)
-        assert "MyBean" in factory._classes
+        assert get_class("MyBean") is MyBean
 
     @pytest.mark.asyncio
     async def test_create_all_singleton(self):
@@ -66,14 +69,15 @@ class TestDoughFactory:
 
     @pytest.mark.asyncio
     async def test_resolve_lazy_creates_on_first_access(self):
+        from pancake.registry import get_instance
         factory = DoughFactory.get()
         MyBean._scope = Scope.LAZY
         factory.register(MyBean)
         await factory.async_create_all()
-        assert "MyBean" not in factory._instances
+        assert get_instance("MyBean") is None  # LAZY 不在 create_all 创建
         bean = factory.resolve("MyBean")
         assert isinstance(bean, MyBean)
-        assert "MyBean" in factory._instances
+        assert get_instance("MyBean") is not None
 
     def test_resolve_unregistered_raises(self):
         factory = DoughFactory.get()
@@ -135,10 +139,12 @@ class TestDoughFactory:
         assert bean.destroyed is True
 
     def test_multiple_factories_independent(self):
+        from pancake.registry import get_class, register_class
         f1 = DoughFactory.get("f1")
         f2 = DoughFactory.get("f2")
         f1.register(MyBean)
-        assert "MyBean" not in f2._classes
+        # 类注册是全局的，但工厂实例是独立的
+        assert get_class("MyBean") is MyBean
 
     @pytest.mark.asyncio
     async def test_sync_lifecycle_still_works(self):
@@ -160,6 +166,7 @@ class TestDependencyResolution:
 
     def setup_method(self):
         DoughFactory._factories.clear()
+        clear_registry()
 
     @pytest.mark.asyncio
     async def test_depends_on_creates_in_order(self):
