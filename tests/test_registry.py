@@ -1,7 +1,18 @@
-"""注册表测试"""
+"""注册表测试 — 旧 PancakeRegistry / MuffinRegistry（向后兼容）"""
 
+import pytest
 from pancake.oven.pancake import PancakeRegistry, create_registry
 from pancake.oven.muffin import MuffinRegistry, create_registry as create_muffin
+
+
+@pytest.fixture
+def pancake_registry():
+    return PancakeRegistry()
+
+
+@pytest.fixture
+def muffin_registry():
+    return MuffinRegistry()
 
 
 class TestPancakeRegistry:

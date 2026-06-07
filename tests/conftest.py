@@ -26,21 +26,22 @@ for plugin_dir in plugin_dirs:
 
 
 @pytest.fixture
-def pancake_registry():
-    """独立的 PancakeRegistry 实例"""
-    from pancake.oven.pancake import PancakeRegistry
-    return PancakeRegistry()
+def dough_factory():
+    """独立的 DoughFactory 实例"""
+    from pancake.factory.dough_factory import DoughFactory
+    import uuid
+    name = f"test_{uuid.uuid4().hex[:8]}"
+    factory = DoughFactory(name)
+    yield factory
+    # 清理
+    if name in DoughFactory._factories:
+        del DoughFactory._factories[name]
 
 
 @pytest.fixture
-def muffin_registry():
-    """独立的 MuffinRegistry 实例"""
-    from pancake.oven.muffin import MuffinRegistry
-    return MuffinRegistry()
-
-
-@pytest.fixture
-def ioc_container():
-    """独立的 IoCContainer 实例"""
-    from pancake.ovenware.inject import IoCContainer
-    return IoCContainer()
+def clean_registry():
+    """清空全局注册表（测试前后）"""
+    from pancake.registry import clear_registry
+    clear_registry()
+    yield
+    clear_registry()

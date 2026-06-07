@@ -44,3 +44,17 @@ def run():
     init()
     from .run import run as _run
     _run()
+
+
+# ---- 公开 API ----
+from pancake.dough import Dough, Scope
+from pancake.factory.dough_factory import DoughFactory
+from pancake.registry import (
+    register_class, get_class, get_all_classes,
+    register_decorator, get_decorator, get_all_decorators,
+)
+from pancake.decorators import (
+    DoughDecorator, Singleton, Prototype, Lazy,
+    Maker, noMaker, inject, Config, DependsOn, Import,
+)
+from pancake.base import Configuration, Function, Service, Struct

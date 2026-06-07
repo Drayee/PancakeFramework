@@ -1,10 +1,14 @@
 """
-全局类注册表
+全局注册表
 无依赖，解决循环导入问题
+提供类注册表和装饰器注册表
 """
 
 _class_registry: dict[str, type] = {}
+_decorator_registry: dict[str, object] = {}
 
+
+# ---- 类注册表 ----
 
 def register_class(name: str, cls: type):
     """注册类到全局注册表"""
@@ -21,6 +25,31 @@ def get_all_classes() -> dict[str, type]:
     return dict(_class_registry)
 
 
+# ---- 装饰器注册表 ----
+
+def register_decorator(name: str, decorator: object):
+    """注册装饰器到全局注册表"""
+    _decorator_registry[name] = decorator
+
+
+def get_decorator(name: str) -> object | None:
+    """从注册表获取装饰器"""
+    return _decorator_registry.get(name)
+
+
+def get_all_decorators() -> dict[str, object]:
+    """获取所有注册的装饰器（返回副本）"""
+    return dict(_decorator_registry)
+
+
+def has_decorator(name: str) -> bool:
+    """检查装饰器是否已注册"""
+    return name in _decorator_registry
+
+
+# ---- 清理 ----
+
 def clear_registry():
-    """清空注册表（用于测试）"""
+    """清空所有注册表（用于测试）"""
     _class_registry.clear()
+    _decorator_registry.clear()

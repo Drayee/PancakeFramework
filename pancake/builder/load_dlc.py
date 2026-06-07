@@ -1,21 +1,26 @@
+"""
+插件加载模块
+自动发现并加载 ovenware/ 下的插件，注册装饰器到 registry
+"""
+
 import sys
-
-from pancake import oven
-from pancake.initialize import check_dlc
-
 import importlib
 import inspect
 import logging
 import os
+
+from pancake.registry import register_decorator
+from pancake.factory.dough_factory import DoughFactory
+from pancake import settings
 
 logger = logging.getLogger(__name__)
 
 
 def _load_from_xml():
     """从 XML 配置加载插件列表"""
-    plugins = oven.pancake_xml.get("plugins", [])
+    plugins = settings.get("_xml_plugins", [])
     if not plugins:
-        return None  # 无 XML 配置，回退到目录扫描
+        return None
 
     main_classes = {}
 
@@ -26,7 +31,6 @@ def _load_from_xml():
         init_order = plugin_info.get("init_order", 0)
         build_order = plugin_info.get("build_order", 0)
 
-        # 导入插件模块（无论是否启用都需要导入，以注册装饰器）
         try:
             plugin = importlib.import_module(source)
         except ImportError as e:
@@ -37,7 +41,6 @@ def _load_from_xml():
                 logger.debug(f"Disabled plugin {name} not available: {e}")
                 continue
 
-        # 收集模块中的公开成员
         all_items = {}
         for attr_name, member in inspect.getmembers(plugin):
             if (
@@ -47,13 +50,13 @@ def _load_from_xml():
             ):
                 all_items[attr_name] = member
 
-        # 注册装饰器（无论是否启用都注册）
+        # 注册装饰器到 registry（无论是否启用都注册）
         for item_name, obj in all_items.items():
             if item_name.startswith("_"):
                 continue
             if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
-                continue  # Main 类下面单独处理
-            oven.muffin_flour[item_name] = obj
+                continue
+            register_decorator(item_name, obj)
 
         # 注册 Main 类（仅启用时）
         if enabled:
@@ -61,12 +64,11 @@ def _load_from_xml():
                 if item_name.startswith("_"):
                     continue
                 if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
-                    effective_init = init_order
-                    effective_build = build_order
-
-                    oven.muffin_egg["BuildOrder"].append([name, effective_build])
-                    oven.muffin_egg["InitOrder"].append([name, effective_init])
-                    main_classes[name] = obj
+                    main_classes[name] = {
+                        "class": obj,
+                        "init_order": init_order,
+                        "build_order": build_order,
+                    }
                     break
             else:
                 logger.info(f"Plugin {name} loaded (no Main class)")
@@ -80,19 +82,18 @@ def _load_from_directory():
     """从 ovenware 目录扫描加载插件（回退模式）"""
     dlc_dir = os.path.join(os.path.dirname(__file__), "../", "ovenware")
     entries = os.listdir(dlc_dir)
-    # 单文件插件
     plugin_files = [f[:-3] for f in entries if f.endswith(".py") and f not in ["__init__.py"]]
-    # 子包插件（目录含 __init__.py）
     plugin_dirs = [d for d in entries
                    if os.path.isdir(os.path.join(dlc_dir, d))
                    and os.path.exists(os.path.join(dlc_dir, d, "__init__.py"))
                    and not d.startswith("_")]
     plugin_names = plugin_files + plugin_dirs
 
+    disable_dlc = settings.get("framework.disable_dlc", [])
     main_classes = {}
 
     for plugin_name in plugin_names:
-        if plugin_name in oven.pancake_yaml.get("framework.disable_dlc", []):
+        if plugin_name in disable_dlc:
             continue
         plugin = importlib.import_module(f"ovenware.{plugin_name}")
         all_items = {}
@@ -104,26 +105,24 @@ def _load_from_directory():
             ):
                 all_items[name] = member
 
-        # 加载 all_items 中的所有 修饰器和 main 类
         for decorator in all_items.keys():
             if not decorator.startswith("_"):
                 obj = all_items[decorator]
                 if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
-                    oven.muffin_egg["BuildOrder"].append([plugin_name, all_items[decorator].build_order])
-                    oven.muffin_egg["InitOrder"].append([plugin_name, all_items[decorator].init_order])
-                    main_classes[plugin_name] = all_items[decorator]
+                    main_classes[plugin_name] = {
+                        "class": obj,
+                        "init_order": getattr(obj, 'init_order', 0),
+                        "build_order": getattr(obj, 'build_order', 0),
+                    }
                     continue
-                oven.muffin_flour[decorator] = all_items[decorator]
+                register_decorator(decorator, obj)
 
     return main_classes
 
 
 def run():
     """加载插件：优先 XML 配置，回退到目录扫描"""
-    # 加载 base 模块，注册 Service 等基础装饰器到 muffin_flour
-    importlib.import_module("pancake.ovenware.base")
-
-    has_xml = bool(oven.pancake_xml.get("plugins"))
+    has_xml = bool(settings.get("_xml_plugins"))
 
     if has_xml:
         logger.info("Loading plugins from XML config")
@@ -132,29 +131,30 @@ def run():
         logger.info("No XML config, scanning ovenware directory")
         main_classes = _load_from_directory()
 
-    oven.muffin_egg["BuildOrder"].sort(key=lambda x: x[1], reverse=True)
-    oven.muffin_egg["InitOrder"].sort(key=lambda x: x[1])
+    # 按 init_order 排序，初始化插件
+    sorted_plugins = sorted(main_classes.items(), key=lambda x: x[1]["init_order"])
 
-    for plugin_name in oven.muffin_egg["InitOrder"]:
+    for plugin_name, plugin_info in sorted_plugins:
+        cls = plugin_info["class"]
+
         try:
-            check_dlc(main_classes[plugin_name[0]].check)
-        except AttributeError:
-            pass
+            instance = cls()
         except Exception as e:
-            logger.error(f"Plugin check failed for {plugin_name[0]}: {e}")
-            import sys
+            logger.error(f"Plugin {plugin_name} init failed: {e}")
             sys.exit(1)
 
-        new_main = main_classes[plugin_name[0]]()
+        # 检查 check 方法
+        if hasattr(instance, 'check'):
+            try:
+                if not instance.check():
+                    logger.info(f"Plugin {plugin_name} check failed, skipping")
+                    continue
+            except Exception as e:
+                logger.error(f"Plugin check failed for {plugin_name}: {e}")
+                sys.exit(1)
 
-        oven.muffin_egg["Builder"][plugin_name[0]] = new_main.build
+        # 注册到 DoughFactory
+        factory = DoughFactory.get()
+        factory.register_instance(plugin_name, instance)
 
-        # 尝试获取 loop_method，verify_method
-        try:
-            oven.muffin_egg["LoopMethod"][plugin_name[0]] = new_main.loop_method
-        except AttributeError:
-            pass
-        try:
-            oven.muffin_egg["VerifyMethod"][plugin_name[0]] = new_main.verify
-        except AttributeError:
-            pass
+        logger.info(f"Plugin {plugin_name} loaded (init_order={plugin_info['init_order']})")

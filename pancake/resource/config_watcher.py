@@ -97,18 +97,18 @@ def start_config_watcher(interval: float = 5.0) -> ConfigWatcher:
         _watcher.watch_dir(json_dir)
 
     def reload_config(changed_files):
-        """重新加载配置到 oven"""
-        from pancake import oven
+        """重新加载配置到 settings"""
+        from pancake import settings
         from pancake.resource import yml, json
 
         for filepath in changed_files:
             if filepath.endswith(('.yaml', '.yml')):
                 new_data = yml.yaml_init()
-                oven.pancake_yaml.update(new_data)
+                settings.init(new_data)
                 logger.info("YAML 配置已重载")
             elif filepath.endswith('.json'):
                 new_data = json.json_init()
-                oven.pancake_json.update(new_data)
+                settings.init(new_data)
                 logger.info("JSON 配置已重载")
 
     _watcher.on_change(reload_config)

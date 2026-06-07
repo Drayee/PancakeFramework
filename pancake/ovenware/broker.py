@@ -9,12 +9,13 @@ import logging
 from typing import Any, Callable
 from collections import defaultdict
 
-from pancake import oven
+from pancake.dough import Dough, Scope
+from pancake.registry import register_decorator
 
 logger = logging.getLogger(__name__)
 
 
-class MessageBroker:
+class MessageBroker(Dough):
     """消息队列基类"""
 
     async def publish(self, topic: str, message: dict) -> None:
@@ -37,7 +38,10 @@ _pending_subscriptions: dict[str, list[Callable]] = defaultdict(list)
 class SimpleBroker(MessageBroker):
     """简单内存消息队列"""
 
+    _scope = Scope.SINGLETON
+
     def __init__(self):
+        super().__init__()
         self._handlers: dict[str, list[Callable]] = defaultdict(list)
         self._initialized = False
 
@@ -72,15 +76,22 @@ class SimpleBroker(MessageBroker):
             except Exception as e:
                 logger.error(f"处理消息失败 [{topic}]: {e}")
 
-    async def close(self) -> None:
-        """关闭"""
+    async def close(self):
+        """关闭并清理"""
+        self._handlers.clear()
+
+    def on_destroy(self):
+        """销毁时清理"""
         self._handlers.clear()
 
 
 class RedisBroker(MessageBroker):
     """Redis 消息队列"""
 
+    _scope = Scope.SINGLETON
+
     def __init__(self, url: str = None):
+        super().__init__()
         from pancake import settings
         self.url = url or settings.get("redis.url")
         self._redis = None
@@ -174,8 +185,8 @@ class RedisBroker(MessageBroker):
             except Exception as e:
                 logger.error(f"处理消息失败 [{topic}]: {e}")
 
-    async def close(self) -> None:
-        """关闭连接"""
+    async def on_destroy(self):
+        """销毁时清理连接"""
         if self._listener_task:
             self._listener_task.cancel()
             try:
@@ -258,16 +269,15 @@ def event_node(name: str = None, event: str = None):
                     "data": kwargs,
                 })
 
-            # 存储结果
-            oven.pancake_other.setdefault("langgraph_map", {})[name] = result
+            # 存储结果到 registry
+            from pancake.factory.dough_factory import DoughFactory
+            factory = DoughFactory.get()
+            factory.register_instance(f"langgraph_result_{name}", result)
             return result
 
         # 标记为事件节点
         wrapper._event = True
         wrapper._event_name = event
-
-        # 注册到 langgraph 节点
-        oven.pancake_dough.setdefault("langgraph_node", {})[name] = wrapper
 
         return wrapper
     return decorator
@@ -287,20 +297,6 @@ def on_event(event: str):
     return decorator
 
 
-# 注册到 muffin_flour，使其被 embed 自动注入到 builtins
-oven.muffin_flour["event_node"] = event_node
-oven.muffin_flour["on_event"] = on_event
-
-
-class Main(InitAction):
-    """消息队列插件主类"""
-
-    name = "broker"
-    init_order = 10
-    description = "消息队列: SimpleBroker / RedisBroker, 事件驱动和消息传递"
-
-    def __init__(self):
-        pass
-
-    def build(self):
-        logger.info("消息队列模块构建完成")
+# 注册装饰器到全局注册表
+register_decorator("event_node", event_node)
+register_decorator("on_event", on_event)
