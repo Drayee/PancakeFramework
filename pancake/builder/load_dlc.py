@@ -1,13 +1,13 @@
 """
 插件加载模块
-自动发现并加载 ovenware/ 下的插件，注册装饰器到 registry
+从 XML 配置加载插件，通过 import 发现，缺失时自动 pip install
 """
 
 import sys
 import importlib
 import inspect
 import logging
-import os
+import subprocess
 
 from pancake.registry import register_decorator
 from pancake.factory.dough_factory import DoughFactory
@@ -16,120 +16,120 @@ from pancake import settings
 logger = logging.getLogger(__name__)
 
 
-def _load_from_xml():
-    """从 XML 配置加载插件列表"""
-    plugins = settings.get("_xml_plugins", [])
-    if not plugins:
-        return None
+def _resolve_package_name(group_id: str, artifact_id: str) -> str:
+    """根据 groupId 和 artifactId 推算 Python 包名
 
+    io.pancake → pancake_{artifactId}
+    其他       → {groupId}_{artifactId}
+    """
+    if group_id == "io.pancake":
+        return f"pancake_{artifact_id}"
+    return f"{group_id}_{artifact_id}"
+
+
+def _try_import(package_name: str):
+    """尝试 import，失败则 pip install 后重试"""
+    try:
+        return importlib.import_module(package_name)
+    except ImportError:
+        pass
+
+    # 自动安装
+    logger.info(f"插件 {package_name} 未安装，正在 pip install ...")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", package_name],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"pip install {package_name} 失败:\n{result.stderr}"
+            )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"pip install {package_name} 超时")
+
+    # 安装后重新 import
+    try:
+        # 清除缓存确保重新加载
+        if package_name in sys.modules:
+            del sys.modules[package_name]
+        return importlib.import_module(package_name)
+    except ImportError as e:
+        raise RuntimeError(
+            f"pip install {package_name} 成功但仍无法导入: {e}"
+        )
+
+
+def _load_plugins():
+    """从 XML dependencies 加载所有插件"""
+    dependencies = settings.get("_xml_dependencies", [])
+    if not dependencies:
+        logger.info("No plugins configured in XML")
+        return {}
+
+    disabled = settings.get("framework.disable_dlc", [])
     main_classes = {}
 
-    for plugin_info in plugins:
-        name = plugin_info["name"]
-        source = plugin_info["source"]
-        enabled = plugin_info.get("enabled", True)
-        init_order = plugin_info.get("init_order", 0)
-        build_order = plugin_info.get("build_order", 0)
+    for dep in dependencies:
+        group_id = dep.get("groupId", "io.pancake")
+        artifact_id = dep.get("artifactId", "")
+        if not artifact_id:
+            continue
+
+        name = artifact_id
+        enabled = dep.get("enabled", True)
+        init_order = dep.get("init_order", 0)
+        build_order = dep.get("build_order", 0)
+
+        if name in disabled:
+            logger.info(f"Plugin {name} disabled, skipping")
+            continue
+
+        # 推算包名并导入
+        package_name = _resolve_package_name(group_id, artifact_id)
 
         try:
-            plugin = importlib.import_module(source)
-        except ImportError as e:
-            if enabled:
-                logger.error(f"Failed to import plugin {name} ({source}): {e}")
-                sys.exit(1)
-            else:
-                logger.debug(f"Disabled plugin {name} not available: {e}")
-                continue
+            plugin = _try_import(package_name)
+        except RuntimeError as e:
+            logger.error(str(e))
+            sys.exit(1)
 
+        # 扫描模块中的类和函数
         all_items = {}
         for attr_name, member in inspect.getmembers(plugin):
             if (
                 (not attr_name.startswith("_"))
                 and (inspect.isclass(member) or inspect.isfunction(member))
-                and (member.__module__ == plugin.__name__ or member.__module__.startswith(plugin.__name__ + "."))
+                and (member.__module__ == plugin.__name__
+                     or member.__module__.startswith(plugin.__name__ + "."))
             ):
                 all_items[attr_name] = member
 
-        # 注册装饰器到 registry（无论是否启用都注册）
+        # 注册装饰器到 registry
         for item_name, obj in all_items.items():
-            if item_name.startswith("_"):
-                continue
             if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
                 continue
             register_decorator(item_name, obj)
 
-        # 注册 Main 类（仅启用时）
-        if enabled:
-            for item_name, obj in all_items.items():
-                if item_name.startswith("_"):
-                    continue
-                if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
-                    main_classes[name] = {
-                        "class": obj,
-                        "init_order": init_order,
-                        "build_order": build_order,
-                    }
-                    break
-            else:
-                logger.info(f"Plugin {name} loaded (no Main class)")
+        # 注册 Main 类
+        for item_name, obj in all_items.items():
+            if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
+                main_classes[name] = {
+                    "class": obj,
+                    "init_order": init_order,
+                    "build_order": build_order,
+                }
+                break
         else:
-            logger.info(f"Plugin {name} disabled (decorators still loaded)")
-
-    return main_classes
-
-
-def _load_from_directory():
-    """从 ovenware 目录扫描加载插件（回退模式）"""
-    dlc_dir = os.path.join(os.path.dirname(__file__), "../", "ovenware")
-    entries = os.listdir(dlc_dir)
-    plugin_files = [f[:-3] for f in entries if f.endswith(".py") and f not in ["__init__.py"]]
-    plugin_dirs = [d for d in entries
-                   if os.path.isdir(os.path.join(dlc_dir, d))
-                   and os.path.exists(os.path.join(dlc_dir, d, "__init__.py"))
-                   and not d.startswith("_")]
-    plugin_names = plugin_files + plugin_dirs
-
-    disable_dlc = settings.get("framework.disable_dlc", [])
-    main_classes = {}
-
-    for plugin_name in plugin_names:
-        if plugin_name in disable_dlc:
-            continue
-        plugin = importlib.import_module(f"ovenware.{plugin_name}")
-        all_items = {}
-        for name, member in inspect.getmembers(plugin):
-            if (
-                (not name.startswith("_"))
-                and (inspect.isclass(member) or inspect.isfunction(member))
-                and (member.__module__ == plugin.__name__ or member.__module__.startswith(plugin.__name__ + "."))
-            ):
-                all_items[name] = member
-
-        for decorator in all_items.keys():
-            if not decorator.startswith("_"):
-                obj = all_items[decorator]
-                if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
-                    main_classes[plugin_name] = {
-                        "class": obj,
-                        "init_order": getattr(obj, 'init_order', 0),
-                        "build_order": getattr(obj, 'build_order', 0),
-                    }
-                    continue
-                register_decorator(decorator, obj)
+            logger.info(f"Plugin {name} loaded (no Main class)")
 
     return main_classes
 
 
 def run():
-    """加载插件：优先 XML 配置，回退到目录扫描"""
-    has_xml = bool(settings.get("_xml_plugins"))
-
-    if has_xml:
-        logger.info("Loading plugins from XML config")
-        main_classes = _load_from_xml()
-    else:
-        logger.info("No XML config, scanning ovenware directory")
-        main_classes = _load_from_directory()
+    """加载插件：从 XML 配置读取，import + 自动 pip install"""
+    logger.info("Loading plugins from XML config")
+    main_classes = _load_plugins()
 
     # 按 init_order 排序，初始化插件
     sorted_plugins = sorted(main_classes.items(), key=lambda x: x[1]["init_order"])

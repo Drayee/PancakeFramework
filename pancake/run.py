@@ -24,13 +24,8 @@ def load_xml():
         global_config = xml_data.get("config", {})
         if global_config:
             settings.init(global_config)
-        # 插件配置也合并到 settings
-        for plugin in xml_data.get("plugins", []):
-            plugin_config = plugin.get("config", {})
-            if plugin_config:
-                settings.init(plugin_config)
-        # 保存 XML 原始数据供 load_dlc 使用
-        settings.set("_xml_plugins", xml_data.get("plugins", []))
+        # 保存依赖列表供 load_dlc 使用
+        settings.set("_xml_dependencies", xml_data.get("dependencies", []))
 
 
 def load_config():
