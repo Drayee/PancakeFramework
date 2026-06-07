@@ -31,8 +31,36 @@ class MessageBroker(Dough):
         pass
 
 
-# 延迟订阅队列：on_event 注册的 handler 在首次 publish 时自动订阅
-_pending_subscriptions: dict[str, list[Callable]] = defaultdict(list)
+class SubscriptionRegistry:
+    """延迟订阅注册表 — 管理 on_event 注册的 handler
+
+    使用类封装避免模块级可变状态，支持测试时重置。
+    """
+
+    def __init__(self):
+        self._pending: dict[str, list[Callable]] = defaultdict(list)
+
+    def add(self, event: str, handler: Callable) -> None:
+        """注册事件 handler"""
+        if handler not in self._pending[event]:
+            self._pending[event].append(handler)
+
+    def remove(self, event: str, handler: Callable) -> None:
+        """取消注册事件 handler"""
+        if event in self._pending and handler in self._pending[event]:
+            self._pending[event].remove(handler)
+
+    def get_all(self) -> dict[str, list[Callable]]:
+        """获取所有待订阅的 handler（返回副本）"""
+        return {k: list(v) for k, v in self._pending.items()}
+
+    def clear(self) -> None:
+        """清空所有待订阅（用于测试）"""
+        self._pending.clear()
+
+
+# 模块级默认实例
+_subscription_registry = SubscriptionRegistry()
 
 
 class SimpleBroker(MessageBroker):
@@ -48,7 +76,7 @@ class SimpleBroker(MessageBroker):
     def _setup_pending(self):
         """将 on_event 注册的延迟 handler 合并到 _handlers"""
         if not self._initialized:
-            for topic, handlers in _pending_subscriptions.items():
+            for topic, handlers in _subscription_registry.get_all().items():
                 for h in handlers:
                     if h not in self._handlers[topic]:
                         self._handlers[topic].append(h)
@@ -103,7 +131,7 @@ class RedisBroker(MessageBroker):
     async def _setup_pending(self):
         """将 on_event 注册的延迟 handler 合并并订阅"""
         if not self._initialized:
-            for topic, handlers in _pending_subscriptions.items():
+            for topic, handlers in _subscription_registry.get_all().items():
                 for h in handlers:
                     if h not in self._handlers[topic]:
                         self._handlers[topic].append(h)
@@ -291,10 +319,20 @@ def on_event(event: str):
         event: 事件名称
     """
     def decorator(func):
-        _pending_subscriptions[event].append(func)
+        _subscription_registry.add(event, func)
         func._event_name = event
         return func
     return decorator
+
+
+def remove_event_handler(event: str, handler: Callable) -> None:
+    """取消注册事件 handler（运行时）"""
+    _subscription_registry.remove(event, handler)
+
+
+def get_subscription_registry() -> SubscriptionRegistry:
+    """获取订阅注册表（用于测试）"""
+    return _subscription_registry
 
 
 # 注册装饰器到全局注册表
