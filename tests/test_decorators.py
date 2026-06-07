@@ -1,8 +1,11 @@
 """Decorators 测试"""
 
 import pytest
-from pancake.dough import Dough
-from pancake.decorators import DependsOn, Import
+from pancake.dough import Dough, Scope
+from pancake.decorators import (
+    DependsOn, Import, DoughDecorator, Singleton, Prototype, Lazy,
+    Maker, noMaker, inject, Config,
+)
 
 
 class TestDependsOn:
@@ -77,3 +80,69 @@ class TestImport:
 
         assert Config().val == 42
         assert Config.__name__ == "Config"
+
+
+class TestClassDecorators:
+
+    def test_dough_decorator_sets_scope(self):
+        @DoughDecorator
+        class MyBean(Dough):
+            def __init__(self):
+                pass
+        assert MyBean._scope == Scope.SINGLETON
+
+    def test_singleton_decorator(self):
+        @Singleton
+        class MyBean(Dough):
+            def __init__(self):
+                pass
+        assert MyBean._scope == Scope.SINGLETON
+
+    def test_prototype_decorator(self):
+        @Prototype
+        class MyBean(Dough):
+            def __init__(self):
+                pass
+        assert MyBean._scope == Scope.PROTOTYPE
+
+    def test_lazy_decorator(self):
+        @Lazy
+        class MyBean(Dough):
+            def __init__(self):
+                pass
+        assert MyBean._lazy is True
+        assert MyBean._scope == Scope.LAZY
+
+    def test_decorator_composition(self):
+        @Prototype
+        @DoughDecorator
+        class MyBean(Dough):
+            def __init__(self):
+                pass
+        assert MyBean._scope == Scope.PROTOTYPE
+
+
+class TestMakerDecorator:
+
+    def test_maker_marks_method(self):
+        class MyConfig(Dough):
+            def __init__(self):
+                pass
+            @Maker
+            def my_bean(self):
+                return "bean"
+        assert hasattr(MyConfig.my_bean, "_is_maker")
+        assert MyConfig.my_bean._is_maker is True
+
+
+class TestNoMakerDecorator:
+
+    def test_no_maker_marks_method(self):
+        class MyConfig(Dough):
+            def __init__(self):
+                pass
+            @noMaker
+            def helper(self):
+                return "helper"
+        assert hasattr(MyConfig.helper, "_no_maker")
+        assert MyConfig.helper._no_maker is True
