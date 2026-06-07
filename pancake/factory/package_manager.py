@@ -20,46 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class PackageManager:
-    """Maven-like 包管理器"""
+    """Maven-like 包管理器 — 无硬编码插件映射
 
-    # 插件名 -> 需要 import 检查的 Python 包
-    PLUGIN_IMPORTS: dict[str, list[str]] = {
-        "embed": [],
-        "web": ["fastapi", "uvicorn"],
-        "mybatis": ["databases", "aiosqlite"],
-        "redis": ["redis"],
-        "ai_model": ["openai"],
-        "langgraph": ["langgraph"],
-        "broker": [],
-        "lifecycle": [],
-        "remote": ["aiohttp"],
-        "cui": ["click"],
-        "gui": ["flet"],
-        "external_plugin": [],
-    }
-
-    # 插件名 -> pip install pancake_framework[extras] 的 extras 名
-    PLUGIN_PIP_EXTRAS: dict[str, str] = {
-        "web": "web",
-        "mybatis": "mybatis",
-        "redis": "redis",
-        "ai_model": "ai",
-        "langgraph": "langgraph",
-        "cui": "cui",
-        "gui": "gui",
-        "remote": "http",
-    }
-
-    # 已知的内建插件（不需要 pip install，只控制是否加载）
-    BUILTIN_PLUGINS: set[str] = {
-        "embed", "broker", "lifecycle", "external_plugin",
-    }
+    依赖信息完全来自 XML <dependencies> 配置：
+    - groupId="io.pancake"：框架插件，从插件的 requires 声明获取包名
+    - groupId="pypi"：第三方包，artifactId 即为 pip 包名
+    """
 
     def __init__(self, dependencies: list[dict]):
         """
         Args:
             dependencies: 从 XML 解析的依赖列表
-                [{"groupId": "io.pancake", "artifactId": "web"}, ...]
+                [{"groupId": "io.pancake", "artifactId": "embed", "requires": [...]},
+                 {"groupId": "pypi", "artifactId": "requests"}, ...]
         """
         self.deps = dependencies
         self.results: list[dict] = []  # 检查结果
@@ -81,49 +54,17 @@ class PackageManager:
         if not missing:
             return True
 
-        # 收集需要的 extras
-        extras_to_install = set()
-        packages_to_install = []
-
-        for pkg in missing:
-            # 检查是否是某个 plugin extra 包含的
-            found_extra = False
-            for plugin, imports in self.PLUGIN_IMPORTS.items():
-                if pkg in imports and plugin in self.PLUGIN_PIP_EXTRAS:
-                    extras_to_install.add(self.PLUGIN_PIP_EXTRAS[plugin])
-                    found_extra = True
-                    break
-            if not found_extra:
-                packages_to_install.append(pkg)
-
-        # 安装 extras
-        if extras_to_install:
-            extras_str = ",".join(extras_to_install)
-            cmd = [sys.executable, "-m", "pip", "install", f"pancake_framework[{extras_str}]"]
-            logger.info(f"安装 extras: {cmd}")
-            try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-                if result.returncode != 0:
-                    logger.error(f"安装失败: {result.stderr}")
-                    return False
-                logger.info(f"安装成功: pancake_framework[{extras_str}]")
-            except subprocess.TimeoutExpired:
-                logger.error("安装超时")
+        cmd = [sys.executable, "-m", "pip", "install"] + missing
+        logger.info(f"安装包: {cmd}")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode != 0:
+                logger.error(f"安装失败: {result.stderr}")
                 return False
-
-        # 安装独立包
-        if packages_to_install:
-            cmd = [sys.executable, "-m", "pip", "install"] + packages_to_install
-            logger.info(f"安装包: {cmd}")
-            try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-                if result.returncode != 0:
-                    logger.error(f"安装失败: {result.stderr}")
-                    return False
-                logger.info(f"安装成功: {packages_to_install}")
-            except subprocess.TimeoutExpired:
-                logger.error("安装超时")
-                return False
+            logger.info(f"安装成功: {missing}")
+        except subprocess.TimeoutExpired:
+            logger.error("安装超时")
+            return False
 
         return True
 
@@ -137,9 +78,7 @@ class PackageManager:
             name = result["name"]
             group = result["groupId"]
 
-            if result["status"] == "builtin":
-                print(f"  [OK] {name} (内建)")
-            elif result["status"] == "ok":
+            if result["status"] == "ok":
                 version = result.get("version", "")
                 version_str = f" ({version})" if version else ""
                 print(f"  [OK] {name}{version_str}")
@@ -157,6 +96,7 @@ class PackageManager:
         group_id = dep.get("groupId", "io.pancake")
         artifact_id = dep.get("artifactId", "")
         optional = dep.get("optional", False)
+        requires = dep.get("requires", [])
 
         result = {
             "name": artifact_id,
@@ -165,32 +105,8 @@ class PackageManager:
             "status": "unknown",
         }
 
-        if group_id == "io.pancake":
-            # 框架插件
-            if artifact_id in self.BUILTIN_PLUGINS:
-                result["status"] = "builtin"
-                return result
-
-            imports = self.PLUGIN_IMPORTS.get(artifact_id, [])
-            if not imports:
-                result["status"] = "ok"
-                return result
-
-            missing = []
-            for mod in imports:
-                try:
-                    __import__(mod)
-                except ImportError:
-                    missing.append(mod)
-
-            if missing:
-                result["status"] = "optional_missing" if optional else "missing"
-                result["missing_packages"] = missing
-            else:
-                result["status"] = "ok"
-
-        elif group_id == "pypi":
-            # 第三方包
+        if group_id == "pypi":
+            # 第三方包：artifactId 即为 pip 包名
             pkg_name = artifact_id
             try:
                 ver = get_version(pkg_name)
@@ -203,24 +119,30 @@ class PackageManager:
                     result["status"] = "missing"
                     result["missing_packages"] = [pkg_name]
 
+        elif requires:
+            # 有 requires 声明的插件：检查 requires 中的包
+            missing = []
+            for mod in requires:
+                try:
+                    __import__(mod)
+                except ImportError:
+                    missing.append(mod)
+
+            if missing:
+                result["status"] = "optional_missing" if optional else "missing"
+                result["missing_packages"] = missing
+            else:
+                result["status"] = "ok"
+
         else:
-            result["status"] = "unknown"
-            result["error"] = f"未知 groupId: {group_id}"
+            # 无 requires 声明：视为内建，直接通过
+            result["status"] = "ok"
 
         return result
 
     def resolve(self, dep: dict) -> tuple[list[str], Optional[str]]:
         """解析依赖 -> (检查模块列表, pip extras名)"""
-        group_id = dep.get("groupId", "io.pancake")
-        artifact_id = dep.get("artifactId", "")
-
-        if group_id == "io.pancake":
-            imports = self.PLUGIN_IMPORTS.get(artifact_id, [])
-            extras = self.PLUGIN_PIP_EXTRAS.get(artifact_id)
-            return imports, extras
-        elif group_id == "pypi":
-            return [artifact_id], None
-        return [], None
+        return dep.get("requires", []), None
 
 
 def plugins_to_dependencies(plugins: list[dict]) -> list[dict]:

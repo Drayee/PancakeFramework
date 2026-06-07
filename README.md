@@ -1,6 +1,6 @@
 # Pancake Framework
 
-> A decorator-driven Python web framework with Spring-inspired IoC, MyBatis-style ORM, and AI workflow integration.
+> A decorator-driven Python framework with Spring-inspired IoC, MyBatis-style ORM, and AI workflow integration.
 
 <div align="center">
 
@@ -8,7 +8,6 @@
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 ![PyPI](https://img.shields.io/pypi/v/pancake_framework?style=flat-square&color=blue)
 ![CI](https://img.shields.io/github/actions/workflow/status/Drayee/PancakeFramework/ci.yml?style=flat-square&label=CI)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.136+-009688?style=flat-square&logo=fastapi&logoColor=white)
 
 </div>
 
@@ -22,7 +21,6 @@
 - **Zero Import** — All decorators and services auto-injected into builtins
 - **Base Classes** — `Configuration` (bean factory), `Service`, `Struct` (dataclass + Dough), `Function`
 - **MyBatis Plus ORM** — Async ORM with CRUD, `@Select`/`@Insert`, dynamic SQL, chain queries
-- **FastAPI Web** — Controllers, filter chain (Spring Security-style), auth, middleware, WebSocket
 - **AI Module** — Unified LLM client (OpenAI/DeepSeek/Gemini/Ollama), memory, RAG
 - **Redis Cache** — `@cached` with anti-penetration/avalanche/breakdown protection
 - **Message Queue** — Event-driven with SimpleBroker and RedisBroker
@@ -100,7 +98,6 @@ class AppConfig(Configuration):
 | Module | Description |
 |--------|-------------|
 | [CLI](docs/cli.md) | Command-line tools |
-| [Web](docs/web.md) | Controllers, filter chain, auth, middleware, WebSocket |
 | [MyBatis ORM](docs/mybatis.md) | Mappers, CRUD, chain queries, dynamic SQL |
 | [AI](docs/ai.md) | LLM client, memory, RAG |
 | [Redis](docs/redis.md) | Cache, data structures, distributed locks |
@@ -108,7 +105,6 @@ class AppConfig(Configuration):
 | [Plugins](docs/plugin.md) | Plugin system and built-in plugins |
 | [Messaging](docs/messaging.md) | Event-driven message queue |
 | [Remote](docs/remote.md) | HTTP and gRPC remote calls |
-| [Security](docs/security.md) | Password hashing, API key, CSRF, OAuth2, sessions |
 
 ## Optional Dependencies
 

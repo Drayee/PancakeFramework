@@ -7,4 +7,3 @@
 from .check_struct import check_struct
 from .check_env import check_environment
 from .print_ico import print_ico
-from .check_dlc import check_dlc
