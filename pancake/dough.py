@@ -2,7 +2,6 @@
 Dough 系统 — Bean 基类、元类、作用域
 """
 
-import asyncio
 import inspect
 from abc import ABC, ABCMeta
 from enum import Enum

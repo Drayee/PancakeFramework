@@ -171,3 +171,22 @@ def Import(*classes: type):
         cls._imports = list(classes)
         return cls
     return decorator
+
+
+# ---- 自动注册到 muffin_flour ----
+
+def _register_to_muffin():
+    """将所有装饰器注册到 muffin_flour，供 DoughMeta 零 import 注入"""
+    from pancake.oven.muffin import muffin_flour
+    muffin_flour["DoughDecorator"] = DoughDecorator
+    muffin_flour["Singleton"] = Singleton
+    muffin_flour["Prototype"] = Prototype
+    muffin_flour["Lazy"] = Lazy
+    muffin_flour["Maker"] = Maker
+    muffin_flour["noMaker"] = noMaker
+    muffin_flour["inject"] = inject
+    muffin_flour["Config"] = Config
+    muffin_flour["DependsOn"] = DependsOn
+    muffin_flour["Import"] = Import
+
+_register_to_muffin()
