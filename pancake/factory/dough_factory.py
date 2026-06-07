@@ -67,12 +67,66 @@ class DoughFactory:
 
         raise ValueError(f"Bean {name} 尚未创建，请先调用 create_all()")
 
-    def create_all(self):
-        """创建所有注册的 Bean"""
+    def _resolve_dependency_order(self) -> list[str]:
+        """拓扑排序确定 Bean 创建顺序（依赖优先）
+
+        使用 Kahn 算法：先计算入度，再依次取出入度为 0 的节点。
+        LAZY Bean 不参与排序（延迟创建）。
+        """
+        # 收集需要排序的 Bean 及其依赖
+        deps: dict[str, list[str]] = {}
         for name, cls in self._classes.items():
             if cls._scope == Scope.LAZY:
-                continue  # Lazy 延迟创建
+                continue
+            deps[name] = getattr(cls, '_depends_on', [])
 
+        # 计算入度
+        in_degree: dict[str, int] = {name: 0 for name in deps}
+        for name, dep_list in deps.items():
+            for dep in dep_list:
+                if dep in in_degree:
+                    in_degree[name] += 1
+
+        # Kahn 算法
+        queue = [name for name, degree in in_degree.items() if degree == 0]
+        order: list[str] = []
+
+        while queue:
+            queue.sort()  # 保证确定性顺序
+            node = queue.pop(0)
+            order.append(node)
+
+            for name, dep_list in deps.items():
+                if node in dep_list:
+                    in_degree[name] -= 1
+                    if in_degree[name] == 0:
+                        queue.append(name)
+
+        if len(order) != len(deps):
+            remaining = [n for n in deps if n not in order]
+            raise ValueError(f"检测到循环依赖: {remaining}")
+
+        return order
+
+    def create_all(self):
+        """创建所有注册的 Bean（按依赖顺序）
+
+        1. 处理 @Import：自动注册外部类
+        2. 拓扑排序确定创建顺序
+        3. 按顺序创建 Bean 并调用 on_init
+        """
+        # 处理 @Import — 自动注册外部类
+        for name, cls in list(self._classes.items()):
+            imports = getattr(cls, '_imports', [])
+            for imported_cls in imports:
+                if imported_cls.__name__ not in self._classes:
+                    self.register(imported_cls)
+
+        # 拓扑排序确定创建顺序
+        order = self._resolve_dependency_order()
+
+        for name in order:
+            cls = self._classes[name]
             try:
                 instance = cls()
                 self._instances[name] = instance

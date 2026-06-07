@@ -135,3 +135,140 @@ class TestDoughFactory:
         f2 = DoughFactory.get("f2")
         f1.register(MyBean)
         assert "MyBean" not in f2._classes
+
+
+class TestDependencyResolution:
+
+    def setup_method(self):
+        DoughFactory._factories.clear()
+
+    def test_depends_on_creates_in_order(self):
+        """@DependsOn 确保依赖先创建"""
+        from pancake.decorators import DependsOn
+
+        class DatabaseService(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                self.connected = True
+
+        @DependsOn("DatabaseService")
+        class UserService(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                self.db_ready = False
+            def on_init(self):
+                # DatabaseService should already be created
+                db = DoughFactory.get().resolve("DatabaseService")
+                self.db_ready = db.connected
+
+        factory = DoughFactory.get()
+        factory.register(DatabaseService)
+        factory.register(UserService)
+        factory.create_all()
+
+        user_svc = factory.resolve("UserService")
+        assert user_svc.db_ready is True
+
+    def test_circular_dependency_raises(self):
+        """循环依赖应该报错"""
+        from pancake.decorators import DependsOn
+
+        @DependsOn("ServiceB")
+        class ServiceA(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                pass
+
+        @DependsOn("ServiceA")
+        class ServiceB(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                pass
+
+        factory = DoughFactory.get()
+        factory.register(ServiceA)
+        factory.register(ServiceB)
+
+        with pytest.raises(ValueError, match="循环依赖"):
+            factory.create_all()
+
+    def test_import_registers_classes(self):
+        """@Import 自动注册外部类"""
+        from pancake.decorators import Import
+
+        class ExternalService(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                self.value = 99
+
+        @Import(ExternalService)
+        class AppConfig(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                pass
+
+        factory = DoughFactory.get()
+        factory.register(AppConfig)
+        factory.create_all()
+
+        # ExternalService should be auto-registered and created
+        ext = factory.resolve("ExternalService")
+        assert ext.value == 99
+
+    def test_chained_dependencies(self):
+        """链式依赖 A -> B -> C，创建顺序应为 C, B, A"""
+        from pancake.decorators import DependsOn
+
+        creation_order = []
+
+        class ServiceC(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                creation_order.append("ServiceC")
+
+        @DependsOn("ServiceC")
+        class ServiceB(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                creation_order.append("ServiceB")
+
+        @DependsOn("ServiceB")
+        class ServiceA(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                creation_order.append("ServiceA")
+
+        factory = DoughFactory.get()
+        factory.register(ServiceA)
+        factory.register(ServiceB)
+        factory.register(ServiceC)
+        factory.create_all()
+
+        assert creation_order == ["ServiceC", "ServiceB", "ServiceA"]
+
+    def test_no_dependencies_still_works(self):
+        """无依赖的 Bean 正常创建"""
+        class SimpleBean(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                self.ok = True
+
+        factory = DoughFactory.get()
+        factory.register(SimpleBean)
+        factory.create_all()
+        assert factory.resolve("SimpleBean").ok is True
+
+    def test_depends_on_unknown_bean_ignored(self):
+        """依赖未注册的 Bean 时，拓扑排序忽略该依赖（不阻塞）"""
+        from pancake.decorators import DependsOn
+
+        @DependsOn("NonExistentBean")
+        class MyBean(Dough):
+            _scope = Scope.SINGLETON
+            def __init__(self):
+                self.created = True
+
+        factory = DoughFactory.get()
+        factory.register(MyBean)
+        factory.create_all()
+        assert factory.resolve("MyBean").created is True
