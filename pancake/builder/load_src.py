@@ -1,8 +1,11 @@
+"""用户代码加载模块 — 扫描 src/ 下的 .py 文件并执行"""
+
 import ast
 import builtins
 import os
 import sys
-from pancake import oven
+
+from pancake.registry import get_all_decorators, get_decorator
 
 # 所有 src 文件共享的全局命名空间
 _shared_globals = {
@@ -31,8 +34,9 @@ def parse_file(filepath):
         sys.path.insert(0, dirname)
 
     results = []
+    all_decorators = get_all_decorators()
+
     for node in ast.walk(tree):
-        # 扫描 类 + 函数（含 async def）
         if not isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
 
@@ -47,11 +51,10 @@ def parse_file(filepath):
             elif isinstance(dec, ast.Call) and hasattr(dec.func, 'id'):
                 dec_name = dec.func.id
 
-            # 匹配 muffin_flour 中的装饰器
-            if dec_name in oven.muffin_flour.keys():
+            if dec_name and dec_name in all_decorators:
                 results.append((dec_name, obj_type, obj_name, filepath))
 
-        # 检查基类是否在 muffin_flour 中（如 class User(Struct)）
+        # 检查基类是否在注册表中（如 class User(Struct)）
         if isinstance(node, ast.ClassDef):
             for base in node.bases:
                 base_name = None
@@ -59,7 +62,7 @@ def parse_file(filepath):
                     base_name = base.id
                 elif isinstance(base, ast.Attribute):
                     base_name = base.attr
-                if base_name and base_name in oven.muffin_flour:
+                if base_name and base_name in all_decorators:
                     results.append((base_name, obj_type, obj_name, filepath))
     return results
 
@@ -76,10 +79,8 @@ def safe_register(filepath):
     except SyntaxError:
         return
 
-    # 收集所有顶级定义（排除 if __name__ == "__main__" 等守卫）
     definitions = []
     for node in tree.body:
-        # 排除 if __name__ == "__main__" 守卫
         if isinstance(node, ast.If):
             if (isinstance(node.test, ast.Compare)
                     and isinstance(node.test.left, ast.Name)
@@ -114,7 +115,7 @@ def run():
         if items:
             min_priority = 50
             for dec_name, _, _, _ in items:
-                dec_obj = oven.muffin_flour.get(dec_name)
+                dec_obj = get_decorator(dec_name)
                 if dec_obj and hasattr(dec_obj, '_load_priority'):
                     min_priority = min(min_priority, dec_obj._load_priority)
             file_items.append((min_priority, f, items))

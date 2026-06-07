@@ -1,14 +1,13 @@
-from pancake import oven
+"""构建模块 — 使用 DoughFactory 创建和启动所有 Bean"""
+
+import logging
+from pancake.factory.dough_factory import DoughFactory
+
+logger = logging.getLogger(__name__)
 
 
 def build():
-
-    # 构建所有服务实例
-    for classes in oven.pancake_dough["Service"]:
-        oven.pancake_pie["Service"][str(classes)] = oven.pancake_dough["Service"][classes].build()
-
-    for build_method_name in oven.muffin_egg["BuildOrder"]:
-        oven.muffin_egg["Builder"][build_method_name[0]]()
-
-
-
+    """创建所有 Bean 并启动"""
+    factory = DoughFactory.get()
+    factory.create_all()
+    factory.startup_all()
