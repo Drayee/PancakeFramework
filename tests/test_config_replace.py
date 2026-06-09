@@ -69,17 +69,20 @@ def test_replace_none():
 
 
 def test_defaults_preserved():
-    """replace 不影响默认配置"""
+    """replace 不影响通过 init 设置的配置"""
     settings.reset()
 
+    # 模拟 XML 加载的默认配置
+    settings.init({"paths.src_dir": "src", "pancake.title": "Test App"})
     settings.init({"custom_key": "value"})
     settings.replace({"new_key": "new"})
 
-    # 默认配置仍然存在
-    assert settings.get("service.host") == "127.0.0.1"
-    assert settings.get("service.port") == 8080
+    # replace 清除了 init 的配置
+    assert settings.get("custom_key") is None
+    assert settings.get("paths.src_dir") is None
+    assert settings.get("new_key") == "new"
 
-    print("[OK] replace 不影响默认配置")
+    print("[OK] replace 清除所有用户配置")
 
 
 if __name__ == "__main__":

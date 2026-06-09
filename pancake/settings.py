@@ -10,17 +10,7 @@ Pancake 配置管理模块
 import os
 
 # 默认配置
-_DEFAULTS = {
-    # 路径配置
-    "paths.src_dir": "src",
-    "paths.yaml_dir": os.path.join("src", "resource", "yaml"),
-    "paths.json_dir": os.path.join("src", "resource", "json"),
-
-    # 服务配置
-    "service.title": "Pancake App",
-    "service.version": "1.0.0",
-    "service.description": "",
-}
+_DEFAULTS = {}
 
 # 用户配置（从 XML/YAML 加载）
 _user_config: dict = {}
