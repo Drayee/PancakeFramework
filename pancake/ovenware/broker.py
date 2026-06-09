@@ -120,8 +120,7 @@ class RedisBroker(MessageBroker):
 
     def __init__(self, url: str = None):
         super().__init__()
-        from pancake import settings
-        self.url = url or settings.get("redis.url")
+        self.url = url or "redis://localhost:6379"
         self._redis = None
         self._pubsub = None
         self._handlers: dict[str, list[Callable]] = defaultdict(list)

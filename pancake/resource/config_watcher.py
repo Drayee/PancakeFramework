@@ -118,8 +118,11 @@ def start_config_watcher(interval: float = 5.0) -> ConfigWatcher:
         if json_data:
             all_new_data.update(json_data)
 
-        # 替换配置（清除旧 key）
-        settings.replace(all_new_data)
+        # 替换配置（清除旧 key），但保留 XML 基础配置
+        from pancake.resource import xml_config
+        xml_config_data = xml_config.load_xml().get("config", {})
+        xml_config_data.update(all_new_data)
+        settings.replace(xml_config_data)
         logger.info(f"配置已热重载 ({len(all_new_data)} 个 key)")
 
     _watcher.on_change(reload_config)

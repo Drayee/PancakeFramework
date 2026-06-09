@@ -53,9 +53,10 @@ def cmd_init(args):
 ''')
 
     with open(os.path.join("src", "resource", "yaml", "service.yaml"), "w", encoding="utf-8") as f:
-        f.write(f'''pancake:
-  title: {name}
-  version: 1.0.0
+        f.write(f'''# 自定义配置（覆盖 pancake.xml 中的值）
+# pancake:
+#   title: {name}
+#   version: 1.0.0
 ''')
 
     print("项目初始化完成!")

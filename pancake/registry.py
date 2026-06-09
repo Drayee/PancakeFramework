@@ -4,7 +4,6 @@
 """
 
 import warnings
-from collections import defaultdict
 
 
 # ============================================================
@@ -128,14 +127,6 @@ egg: dict[str, object] = {}
 
 # 其他 API
 sugar: dict[str, object] = {}
-
-
-# 向后兼容别名（muffin 模块迁移）
-muffin_flour = flour
-muffin_water = water
-muffin_egg = egg
-muffin_sugar = sugar
-
 
 # ============================================================
 #  清理
