@@ -4,6 +4,7 @@ from pancake.dough import Dough
 
 
 class Function(Dough):
+    _no_register = True
     """方法类 — 包装函数，提供 call() 方法
 
     使用时直接调用即可:

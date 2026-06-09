@@ -103,6 +103,46 @@ def safe_register(filepath):
         return
 
 
+def _try_exec(filepath):
+    """尝试执行文件，成功返回 True，失败返回 False"""
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            source = f.read()
+    except (OSError, IOError):
+        return True
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return True
+
+    definitions = []
+    for node in tree.body:
+        if isinstance(node, ast.If):
+            if (isinstance(node.test, ast.Compare)
+                    and isinstance(node.test.left, ast.Name)
+                    and node.test.left.id == "__name__"):
+                continue
+        definitions.append(node)
+
+    if not definitions:
+        return True
+
+    new_tree = ast.Module(body=definitions, type_ignores=[])
+    ast.fix_missing_locations(new_tree)
+
+    try:
+        code = compile(new_tree, filepath, 'exec')
+        exec(code, _shared_globals)
+        return True
+    except NameError:
+        return False
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return True
+
+
 def run():
     from pancake.settings import get_path
     src_dir = get_path("src_dir")
@@ -130,5 +170,22 @@ def run():
             seen.add(item[1])
             unique_items.append(item)
 
+    # 第一轮：按优先级执行，收集 NameError 失败的文件
+    pending = []
     for _, path, _ in unique_items:
-        safe_register(path)
+        if not _try_exec(path):
+            pending.append(path)
+
+    # 重试轮：NameError 的文件可能依赖其他文件中定义的类
+    # 反复重试直到全部成功或无进展
+    while pending:
+        still_pending = []
+        for path in pending:
+            if not _try_exec(path):
+                still_pending.append(path)
+        if len(still_pending) == len(pending):
+            # 无进展，剩余文件有无法解决的依赖
+            for path in still_pending:
+                safe_register(path)
+            break
+        pending = still_pending

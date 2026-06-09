@@ -92,10 +92,13 @@ def function(func):
 
 @export
 def struct(cls):
-    """@struct — 将类转换为 Struct（类似 Spring @Component + dataclass）"""
-    from pancake.base.struct import Struct
+    """@struct — 将类标记为数据结构（类似 dataclass，不注册到 IoC 容器）
+
+    与 @service/@configuration 不同，@struct 不会创建实例注册到 DoughFactory。
+    适用于 DTO、表单、配置数据等纯数据容器。
+    """
     from dataclasses import dataclass
 
     cls = dataclass(cls)
-    new_cls = _convert_class(cls, Struct, dough_type="struct")
-    return new_cls
+    cls._dough_type = "struct"
+    return cls

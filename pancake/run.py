@@ -85,13 +85,19 @@ def build_all():
 
 
 def _get_loop_methods() -> dict:
-    """从 DoughFactory 中获取所有注册的 loop_method"""
+    """从 DoughFactory 中获取所有注册的 loop_method
+
+    跳过 InitAction 基类的默认空实现。
+    """
+    from pancake.ovenware import InitAction
     factory = DoughFactory.get()
     loop_methods = {}
 
-    # 从已注册的实例中查找 loop_method
     for name, instance in factory.get_all_instances().items():
         if hasattr(instance, 'loop_method') and callable(instance.loop_method):
+            # 跳过未覆盖基类默认空实现的插件
+            if isinstance(instance, InitAction) and type(instance).loop_method is InitAction.loop_method:
+                continue
             loop_methods[name] = instance.loop_method
 
     return loop_methods
@@ -119,9 +125,10 @@ def run_loop_methods():
     items = list(loop_methods.items())
 
     # 找到 web 相关的 loop_method 放主线程
+    # 优先选择具体实现类（如 WebServer），跳过插件 Main 类
     main_idx = 0
     for i, (name, method) in enumerate(items):
-        if "web" in name.lower():
+        if "web" in name.lower() and "main" not in name.lower():
             main_idx = i
             break
 

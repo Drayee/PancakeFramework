@@ -9,4 +9,5 @@ class Service(Dough):
     类似 Spring @Service
     方法通过 @staticmethod 定义，通过 @inject 注入依赖
     """
+    _no_register = True
     pass

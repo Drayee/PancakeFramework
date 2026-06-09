@@ -5,6 +5,7 @@ from pancake.dough import Dough
 
 
 class Configuration(Dough):
+    _no_register = True
     """配置类 — 非私有方法返回值自动注册为 Bean
 
     规则:
