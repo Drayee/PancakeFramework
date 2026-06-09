@@ -35,10 +35,8 @@ def cmd_init(args):
     <version>1.0.0</version>
 
     <global>
-        <service.title>{name}</service.title>
-        <service.version>1.0.0</service.version>
-        <service.host>127.0.0.1</service.host>
-        <service.port>8080</service.port>
+        <pancake.title>{name}</pancake.title>
+        <pancake.version>1.0.0</pancake.version>
     </global>
 
     <dependencies>
@@ -55,11 +53,10 @@ def cmd_init(args):
 ''')
 
     with open(os.path.join("src", "resource", "yaml", "service.yaml"), "w", encoding="utf-8") as f:
-        f.write(f'''service:
-  title: {name}
-  version: 1.0.0
-  host: 127.0.0.1
-  port: 8080
+        f.write(f'''# 自定义配置（覆盖 pancake.xml 中的值）
+# pancake:
+#   title: {name}
+#   version: 1.0.0
 ''')
 
     print("项目初始化完成!")
@@ -96,10 +93,8 @@ def cmd_create(args):
     <version>1.0.0</version>
 
     <global>
-        <service.title>{name}</service.title>
-        <service.version>1.0.0</service.version>
-        <service.host>127.0.0.1</service.host>
-        <service.port>8080</service.port>
+        <pancake.title>{name}</pancake.title>
+        <pancake.version>1.0.0</pancake.version>
     </global>
 
     <dependencies>
@@ -116,11 +111,9 @@ def cmd_create(args):
 ''')
 
     with open(os.path.join(project_dir, "src", "resource", "yaml", "service.yaml"), "w", encoding="utf-8") as f:
-        f.write(f'''service:
+        f.write(f'''pancake:
   title: {name}
   version: 1.0.0
-  host: 127.0.0.1
-  port: 8080
 ''')
 
     with open(os.path.join(project_dir, "pyproject.toml"), "w", encoding="utf-8") as f:

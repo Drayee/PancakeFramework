@@ -106,10 +106,11 @@ def _get_loop_methods() -> dict:
 def run_loop_methods():
     """运行所有 loop_method（并发执行，避免互相阻塞）
 
-    web 服务器始终在主线程运行（保持进程存活），
-    其余 loop_method 在守护线程中运行。
+    通过配置 framework.main_loop 指定主线程运行的 loop_method 名称。
+    未配置时默认第一个 loop_method 在主线程运行。
     """
     import threading
+    from pancake import settings
 
     loop_methods = _get_loop_methods()
     if not loop_methods:
@@ -121,16 +122,16 @@ def run_loop_methods():
         method()
         return
 
-    # 多个 loop_method：web 在主线程，其余在守护线程
     items = list(loop_methods.items())
 
-    # 找到 web 相关的 loop_method 放主线程
-    # 优先选择具体实现类（如 WebServer），跳过插件 Main 类
+    # 通过配置指定主线程 loop_method
+    main_loop_name = settings.get("framework.main_loop")
     main_idx = 0
-    for i, (name, method) in enumerate(items):
-        if "web" in name.lower() and "main" not in name.lower():
-            main_idx = i
-            break
+    if main_loop_name:
+        for i, (name, method) in enumerate(items):
+            if name == main_loop_name:
+                main_idx = i
+                break
 
     for i, (name, method) in enumerate(items):
         if i == main_idx:

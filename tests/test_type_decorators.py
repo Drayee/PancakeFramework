@@ -9,7 +9,6 @@ from pancake.decorators import service, configuration, function, struct
 from pancake.base.service import Service
 from pancake.base.configuration import Configuration
 from pancake.base.function import Function
-from pancake.base.struct import Struct
 from dataclasses import fields
 
 
@@ -92,14 +91,13 @@ def test_function_async():
 # ---- 测试 @struct ----
 
 def test_struct_decorator():
-    """@struct 将类转换为 Struct + dataclass"""
+    """@struct 将类标记为 dataclass（不注册到 IoC 容器）"""
     @struct
     class UserDTO:
         name: str = ""
         age: int = 0
 
-    assert issubclass(UserDTO, Struct)
-    assert issubclass(UserDTO, Dough)
+    # @struct 不再转换为 Struct/Dough 子类，仅应用 @dataclass
     assert UserDTO._dough_type == "struct"
 
     # 应该有 dataclass 字段
@@ -129,17 +127,17 @@ def test_conflict_service_and_configuration():
         print("[OK] 冲突检测: @service + @configuration 正确报错")
 
 
-def test_conflict_struct_and_service():
-    """@struct 和 @service 不能同时使用"""
-    try:
-        @struct
-        @service
-        class ConflictClass:
-            pass
-        assert False, "应该抛出 TypeError"
-    except TypeError as e:
-        assert "已应用" in str(e)
-        print("[OK] 冲突检测: @struct + @service 正确报错")
+def test_struct_is_pure_dataclass():
+    """@struct 仅标记为 dataclass，不与 @service 冲突"""
+    @struct
+    class UserDTO:
+        name: str = ""
+        age: int = 0
+
+    # @struct 只是 dataclass 标记，不注册到 IoC，不与 service 冲突
+    assert hasattr(UserDTO, '__dataclass_fields__')
+    assert UserDTO._dough_type == "struct"
+    print("[OK] @struct 是纯 dataclass 标记")
 
 
 def test_same_decorator_no_conflict():
@@ -162,6 +160,6 @@ if __name__ == "__main__":
     test_function_async()
     test_struct_decorator()
     test_conflict_service_and_configuration()
-    test_conflict_struct_and_service()
+    test_struct_is_pure_dataclass()
     test_same_decorator_no_conflict()
     print("\n所有测试通过！")

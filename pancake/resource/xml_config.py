@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 
 XML_FILE_PRIMARY = "pancake.xml"
 
+# 路径默认配置（XML 不存在时也生效）
+_PATH_DEFAULTS = {
+    "paths.src_dir": "src",
+    "paths.yaml_dir": os.path.join("src", "resource", "yaml"),
+    "paths.json_dir": os.path.join("src", "resource", "json"),
+}
+
 
 def _resolve_env_vars(value: str) -> str:
     """替换 ${env:VAR_NAME} 为环境变量值"""
@@ -122,11 +129,11 @@ def load_xml(xml_path: str = None) -> dict:
 
     if xml_path is None:
         logger.info("No pancake.xml found, using directory scanning mode")
-        return {"plugins": [], "dependencies": [], "config": {}}
+        return {"plugins": [], "dependencies": [], "config": dict(_PATH_DEFAULTS)}
 
     if not os.path.exists(xml_path):
         logger.warning(f"XML config not found: {xml_path}")
-        return {"plugins": [], "dependencies": [], "config": {}}
+        return {"plugins": [], "dependencies": [], "config": dict(_PATH_DEFAULTS)}
 
     logger.info(f"Loading XML config: {xml_path}")
 
@@ -135,21 +142,21 @@ def load_xml(xml_path: str = None) -> dict:
         root = tree.getroot()
     except ET.ParseError as e:
         logger.error(f"XML parse error: {e}")
-        return {"plugins": [], "dependencies": [], "config": {}}
+        return {"plugins": [], "dependencies": [], "config": dict(_PATH_DEFAULTS)}
 
     result = {
         "plugins": [],
         "dependencies": [],
-        "config": {},
+        "config": dict(_PATH_DEFAULTS),
         "groupId": root.findtext("groupId", ""),
         "artifactId": root.findtext("artifactId", ""),
         "version": root.findtext("version", ""),
     }
 
-    # 解析全局配置：支持 <config> 和 <global> 两种写法
+    # 解析全局配置：支持 <config> 和 <global> 两种写法（合并到默认配置）
     global_config = root.find("config") or root.find("global")
     if global_config is not None:
-        result["config"] = _parse_properties(global_config)
+        result["config"].update(_parse_properties(global_config))
         for child in global_config:
             if child.tag != "property" and child.text and child.text.strip():
                 key = child.tag

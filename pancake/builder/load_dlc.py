@@ -78,8 +78,6 @@ def _load_plugins():
 
         name = artifact_id
         enabled = dep.get("enabled", True)
-        init_order = dep.get("init_order", 0)
-        build_order = dep.get("build_order", 0)
 
         if name in disabled:
             logger.info(f"Plugin {name} disabled, skipping")
@@ -111,14 +109,10 @@ def _load_plugins():
                 continue
             register_decorator(item_name, obj)
 
-        # 注册 Main 类
+        # 注册 Main 类（init_order/build_order 从类自身读取）
         for item_name, obj in all_items.items():
             if inspect.isclass(obj) and hasattr(obj, 'build') and hasattr(obj, 'init_order'):
-                main_classes[name] = {
-                    "class": obj,
-                    "init_order": init_order,
-                    "build_order": build_order,
-                }
+                main_classes[name] = {"class": obj}
                 break
         else:
             logger.info(f"Plugin {name} loaded (no Main class)")
@@ -131,8 +125,8 @@ def run():
     logger.info("Loading plugins from XML config")
     main_classes = _load_plugins()
 
-    # 按 init_order 排序，初始化插件
-    sorted_plugins = sorted(main_classes.items(), key=lambda x: x[1]["init_order"])
+    # 按插件自身 init_order 排序，初始化插件
+    sorted_plugins = sorted(main_classes.items(), key=lambda x: x[1]["class"].init_order)
 
     for plugin_name, plugin_info in sorted_plugins:
         cls = plugin_info["class"]
@@ -157,4 +151,4 @@ def run():
         factory = DoughFactory.get()
         factory.register_instance(plugin_name, instance)
 
-        logger.info(f"Plugin {plugin_name} loaded (init_order={plugin_info['init_order']})")
+        logger.info(f"Plugin {plugin_name} loaded (init_order={cls.init_order})")

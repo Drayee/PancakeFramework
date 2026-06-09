@@ -22,6 +22,7 @@ def scan_py_files(folder="."):
                 files.append(os.path.abspath(os.path.join(root, f)))
     return files
 
+
 def parse_file(filepath):
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -66,45 +67,13 @@ def parse_file(filepath):
                     results.append((base_name, obj_type, obj_name, filepath))
     return results
 
-def safe_register(filepath):
-    """在共享命名空间中执行文件，所有定义对其他文件可见"""
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            source = f.read()
-    except (OSError, IOError):
-        return
 
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return
+def _parse_and_exec(filepath, catch_all=False):
+    """解析并执行文件，返回是否成功
 
-    definitions = []
-    for node in tree.body:
-        if isinstance(node, ast.If):
-            if (isinstance(node.test, ast.Compare)
-                    and isinstance(node.test.left, ast.Name)
-                    and node.test.left.id == "__name__"):
-                continue
-        definitions.append(node)
-
-    if not definitions:
-        return
-
-    new_tree = ast.Module(body=definitions, type_ignores=[])
-    ast.fix_missing_locations(new_tree)
-
-    try:
-        code = compile(new_tree, filepath, 'exec')
-        exec(code, _shared_globals)
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        return
-
-
-def _try_exec(filepath):
-    """尝试执行文件，成功返回 True，失败返回 False"""
+    Args:
+        catch_all: True 时捕获所有异常（用于最终兜底），False 时只捕获 NameError
+    """
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             source = f.read()
@@ -136,7 +105,7 @@ def _try_exec(filepath):
         exec(code, _shared_globals)
         return True
     except NameError:
-        return False
+        return not catch_all  # catch_all=True 时视为成功，False 时需要重试
     except Exception:
         import traceback
         traceback.print_exc()
@@ -173,7 +142,7 @@ def run():
     # 第一轮：按优先级执行，收集 NameError 失败的文件
     pending = []
     for _, path, _ in unique_items:
-        if not _try_exec(path):
+        if not _parse_and_exec(path, catch_all=False):
             pending.append(path)
 
     # 重试轮：NameError 的文件可能依赖其他文件中定义的类
@@ -181,11 +150,11 @@ def run():
     while pending:
         still_pending = []
         for path in pending:
-            if not _try_exec(path):
+            if not _parse_and_exec(path, catch_all=False):
                 still_pending.append(path)
         if len(still_pending) == len(pending):
-            # 无进展，剩余文件有无法解决的依赖
+            # 无进展，剩余文件强制执行（捕获所有异常）
             for path in still_pending:
-                safe_register(path)
+                _parse_and_exec(path, catch_all=True)
             break
         pending = still_pending
