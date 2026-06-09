@@ -77,6 +77,45 @@ def _resolve_inject_params(func, kwargs, by_name=False):
     return kwargs
 
 
+def _make_inject_class(cls):
+    """@inject 用于类 — 在 on_init 中自动注入类型注解的属性"""
+    annotations = {}
+    for base in reversed(cls.__mro__):
+        if hasattr(base, '__annotations__'):
+            annotations.update(base.__annotations__)
+
+    # 从类型注解推导依赖，确保拓扑排序先创建依赖 Bean
+    deps = []
+    for attr_name, attr_type in annotations.items():
+        if attr_name.startswith('_'):
+            continue
+        if isinstance(attr_type, type) and hasattr(attr_type, '__name__'):
+            deps.append(attr_type.__name__)
+    if deps:
+        existing = getattr(cls, '_depends_on', [])
+        cls._depends_on = list(set(existing + deps))
+
+    original_on_init = cls.on_init
+
+    async def _auto_inject_on_init(self):
+        from pancake.factory.dough_factory import DoughFactory
+        factory = DoughFactory.get()
+        for attr_name, attr_type in annotations.items():
+            if attr_name.startswith('_'):
+                continue
+            if getattr(self, attr_name, None) is not None:
+                continue
+            type_name = attr_type.__name__ if hasattr(attr_type, '__name__') else str(attr_type)
+            try:
+                setattr(self, attr_name, factory.resolve(type_name))
+            except (ValueError, Exception):
+                pass
+        await original_on_init(self)
+
+    cls.on_init = _auto_inject_on_init
+    return cls
+
+
 def _make_inject_wrapper(func, by_name=False):
     """创建注入 wrapper（@inject 和 @inject_name 共用）"""
     if inspect.iscoroutinefunction(func):
@@ -102,12 +141,17 @@ def _make_inject_wrapper(func, by_name=False):
 
 
 @export
-def inject(func):
+def inject(func_or_cls):
     """@inject — 自动按类型注入依赖
+
+    用于函数: 自动解析参数
+    用于类: 自动解析类型注解的属性（在 on_init 中注入）
 
     解析优先级:
     1. 参数默认值 inject_name("name") → 按 bean name
     2. 有类型注解 → 按类型名
     3. 无类型注解 → 按形参名
     """
-    return _make_inject_wrapper(func, by_name=False)
+    if isinstance(func_or_cls, type):
+        return _make_inject_class(func_or_cls)
+    return _make_inject_wrapper(func_or_cls, by_name=False)

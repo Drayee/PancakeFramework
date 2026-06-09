@@ -32,6 +32,7 @@ def _convert_class(cls, *bases, dough_type=None):
             '__module__': cls.__module__,
             '__qualname__': cls.__qualname__,
             '__doc__': cls.__doc__,
+            '__annotations__': dict(cls.__annotations__),
         })
     else:
         cls.__bases__ = bases + cls.__bases__
