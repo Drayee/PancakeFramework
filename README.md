@@ -192,19 +192,10 @@ pancake plugin clear             # Clear all plugins
 
 ## Documentation
 
-| Module | Description |
-|--------|-------------|
+| Module                                                     | Description                                              |
+|------------------------------------------------------------|----------------------------------------------------------|
 | [Framework Tutorial (English)](docs/tutorial/en/README.md) | Complete tutorial covering core concepts and all plugins |
-| [框架教程 (中文)](docs/tutorial/zh/README.md) | 完整教程，涵盖核心概念和所有插件 |
-| [CLI](docs/cli.md) | Command-line tools |
-| [MyBatis ORM](docs/mybatis.md) | Mapper, CRUD, chain queries, dynamic SQL |
-| [Web](docs/web.md) | Controllers, routing, middleware, exception handling |
-| [AI](docs/ai.md) | LLM client, memory, RAG |
-| [Redis](docs/redis.md) | Cache, data structures |
-| [Security](docs/security.md) | Authentication, authorization, CSRF, JWT |
-| [Remote](docs/remote.md) | HTTP and gRPC |
-| [Messaging](docs/messaging.md) | Event-driven messaging |
-| [Config](docs/config.md) | YAML/XML/environment variables |
+| [框架教程 (中文)](docs/tutorial/zh/README.md)                    | 完整教程，涵盖核心概念和所有插件                                         |
 
 ## Optional Dependencies
 

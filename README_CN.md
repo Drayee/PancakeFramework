@@ -184,19 +184,10 @@ pancake plugin clear             # 清空所有插件
 
 ## 文档
 
-| 模块 | 说明 |
-|------|------|
-| [框架教程 (中文)](docs/tutorial/zh/README.md) | 完整教程，涵盖核心概念和所有插件 |
+| 模块                                                         | 说明                                                       |
+|------------------------------------------------------------|----------------------------------------------------------|
+| [框架教程 (中文)](docs/tutorial/zh/README.md)                    | 完整教程，涵盖核心概念和所有插件                                         |
 | [Framework Tutorial (English)](docs/tutorial/en/README.md) | Complete tutorial covering core concepts and all plugins |
-| [CLI](docs/cli.md) | 命令行工具 |
-| [MyBatis ORM](docs/mybatis.md) | Mapper、CRUD、链式查询、动态 SQL |
-| [Web](docs/web.md) | 控制器、路由、中间件、异常处理 |
-| [AI](docs/ai.md) | LLM 客户端、记忆、RAG |
-| [Redis](docs/redis.md) | 缓存、数据结构 |
-| [安全](docs/security.md) | 认证、授权、CSRF、JWT |
-| [远程调用](docs/remote.md) | HTTP 和 gRPC |
-| [消息队列](docs/messaging.md) | 事件驱动消息 |
-| [配置](docs/config.md) | YAML/XML/环境变量 |
 
 ## 可选依赖
 
