@@ -194,7 +194,8 @@ pancake plugin clear             # Clear all plugins
 
 | Module | Description |
 |--------|-------------|
-| [Framework Tutorial](docs/tutorial.md) | Complete tutorial covering core concepts and all plugins |
+| [Framework Tutorial (English)](docs/tutorial/en/README.md) | Complete tutorial covering core concepts and all plugins |
+| [框架教程 (中文)](docs/tutorial/zh/README.md) | 完整教程，涵盖核心概念和所有插件 |
 | [CLI](docs/cli.md) | Command-line tools |
 | [MyBatis ORM](docs/mybatis.md) | Mapper, CRUD, chain queries, dynamic SQL |
 | [Web](docs/web.md) | Controllers, routing, middleware, exception handling |
