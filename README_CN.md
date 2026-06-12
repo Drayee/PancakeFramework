@@ -1,113 +1,204 @@
 # Pancake Framework
 
-> 一个装饰器驱动的 Python Web 框架，集成 Spring 风格 IoC、MyBatis 风格 ORM 和 AI 工作流。
+> 装饰器驱动的 Python 全栈框架，集成 Spring 风格 IoC、MyBatis Plus ORM、AI 工作流和插件系统。
 
-[English](./README.md)
+[English](./README.md) | [中文文档](./README_CN.md)
 
 ## 特性
 
-- **Dough IoC 系统** — Spring 风格 Bean 容器，完整生命周期（`on_init` → `on_start` → `on_stop` → `on_destroy`）
-- **装饰器驱动** — `@Singleton`、`@Prototype`、`@Lazy`、`@DependsOn`、`@Import`、`@inject`
+- **Dough IoC 容器** — Spring 风格 Bean 管理，完整生命周期：`on_init` → `on_start` → `on_stop` → `on_destroy`
+- **装饰器驱动** — `@singleton`、`@prototype`、`@lazy`、`@inject`、`@config`、`@depends_on`
 - **异步优先** — 所有生命周期方法支持 `async def`，DoughFactory 自动处理 sync/async
-- **零 import** — 所有装饰器和服务自动注入 builtins，无需显式 import
-- **基类体系** — `Configuration`（Bean 工厂）、`Service`、`Struct`（dataclass + Dough）、`Function`
-- **MyBatis Plus ORM** — 异步 ORM，内置 CRUD、`@Select`/`@Insert`、动态 SQL、链式查询
-- **FastAPI Web** — 控制器、过滤器链（类 Spring Security）、认证、中间件、WebSocket
-- **AI 模块** — 统一 LLM 客户端 (OpenAI/DeepSeek/Gemini/Ollama)、记忆、RAG
-- **Redis 缓存** — `@cached` 装饰器，防穿透/雪崩/击穿保护
-- **消息队列** — 事件驱动，支持 SimpleBroker 和 RedisBroker
-- **插件系统** — XML 声明式管理，自动 pip 安装，`pancake plugin` 命令行
+- **零 import** — `pancake-embed` 插件将所有装饰器和类注入 `builtins`，无需显式 import
+- **基类体系** — `Configuration`（Bean 工厂）、`Service`（服务）、`Struct`（数据结构）、`Function`（函数包装）
+- **MyBatis Plus ORM** — `@Mapper`、`@Select`/`@Insert`/`@Update`/`@Delete`、链式查询 `qw()`、动态 SQL、分页
+- **aiohttp Web 服务器** — `@controller`、`@get`/`@post`、参数绑定、中间件、异常处理、CORS
+- **Jinja2 模板** — `@template` 装饰器自动渲染 HTML 页面
+- **Spring Security 风格安全** — 认证/授权、JWT、CSRF 防护、限流、安全响应头
+- **AI 模块** — 统一 LLM 客户端（OpenAI/DeepSeek/Gemini/Ollama）、短期/长期记忆、RAG
+- **Redis 缓存** — `@cached` 装饰器、CacheGuard（防穿透/雪崩/击穿）
+- **消息队列** — `@event_node`/`@on_event` 事件驱动，SimpleBroker/RedisBroker
+- **远程调用** — `HttpRemote`/`GrpcRemote` HTTP 和 gRPC 客户端
+- **LangGraph 工作流** — `@langgraph_node`/`@langgraph_edge` 状态图编排
+- **GUI/CUI** — Flet 桌面 GUI 和 Click CLI 框架集成
+- **插件系统** — XML 声明式管理，自动 pip 安装，`pancake plugin` CLI
 
 ## 快速开始
 
+### 安装
+
 ```bash
 pip install pancake_framework
-pancake create myapp && cd myapp
+```
+
+### 创建项目
+
+```bash
+pancake create myapp
+cd myapp
+```
+
+### 运行
+
+```bash
+python main.py
+# 或
 pancake run
 ```
 
-服务启动在 `http://127.0.0.1:8080`，健康检查 `/health`。
+### 项目结构
 
-## Dough IoC 系统
+```
+myapp/
+├── main.py                  # 入口文件
+├── pancake.xml              # 插件和全局配置
+├── pyproject.toml           # 项目元数据
+└── src/
+    ├── resource/
+    │   ├── yaml/            # YAML 配置
+    │   │   └── service.yaml
+    │   └── json/            # JSON 配置
+    └── templates/           # HTML 模板
+```
 
-Pancake 的核心是 **Dough** 系统 — Spring 风格的 IoC 容器。
+## 核心概念
 
-### Bean 生命周期
+### Dough IoC 系统
+
+Pancake 的核心是 **Dough** 系统 — Spring 风格的 IoC 容器。所有 Bean 继承自 `Dough` 基类，由 `DoughFactory` 统一管理生命周期。
+
+#### Bean 生命周期
 
 ```
 __init__()  →  on_init()  →  on_start()  →  [运行中]  →  on_stop()  →  on_destroy()
    构造        @PostConstruct    就绪                        停止         @PreDestroy
 ```
 
-### 作用域
+#### 作用域
 
 | 作用域 | 装饰器 | 说明 |
 |--------|--------|------|
-| 单例 | `@Singleton` | 每个工厂一个实例（默认） |
-| 多例 | `@Prototype` | 每次获取创建新实例 |
-| 懒加载 | `@Lazy` | 首次访问时创建 |
+| 单例 | `@singleton` | 每个工厂一个实例（默认） |
+| 多例 | `@prototype` | 每次获取创建新实例 |
+| 懒加载 | `@lazy` | 首次访问时创建 |
 
-### 示例
+#### 基类
+
+| 基类 | 用途 |
+|------|------|
+| `Service` | 服务类，方法集合 |
+| `Configuration` | 配置类，非私有方法返回值自动注册为 Bean |
+| `Struct` | 数据结构，继承 dataclass，适用于 DTO/表单 |
+| `Function` | 函数包装，提供 `call()` 方法 |
+
+### 零 import 机制
+
+启用 `pancake-embed` 插件后，所有框架装饰器、基类和服务自动注入 `builtins`：
 
 ```python
-from pancake import Service, DoughFactory, DependsOn, inject, Singleton
-
-@Singleton
-@DependsOn("DatabaseService")
+# 无需任何 import，直接使用
+@singleton
+@depends_on("DatabaseService")
 class UserService(Service):
     async def on_init(self):
         self.db = DoughFactory.get().resolve("DatabaseService")
 
     async def find_user(self, user_id: int):
         return await self.db.query(user_id)
-
-class AppConfig(Configuration):
-    def my_cache(self):
-        return RedisCache()
-
-    @noMaker
-    def helper(self):
-        return "not a bean"
 ```
 
 ### 装饰器一览
 
 | 装饰器 | 目标 | 说明 |
 |--------|------|------|
-| `@DoughDecorator` | 类 | 标记类为 Bean |
-| `@Singleton` | 类 | 单例作用域 |
-| `@Prototype` | 类 | 多例作用域 |
-| `@Lazy` | 类 | 懒加载 |
-| `@DependsOn("A", "B")` | 类 | 声明依赖 |
-| `@Import(ExternalCls)` | 类 | 自动注册外部类 |
-| `@Maker` | 方法 | 标记方法返回值为 Bean |
-| `@noMaker` | 方法 | 排除方法，不自动注册 |
-| `@inject` | 函数 | 自动从工厂注入依赖 |
-| `@Config` | 类 | 从配置注入字段 |
+| `@dough` | 类 | 标记类为 Bean |
+| `@singleton` | 类 | 单例作用域 |
+| `@prototype` | 类 | 多例作用域 |
+| `@lazy` | 类 | 懒加载 |
+| `@service` | 类 | 转换为 Service 子类 |
+| `@configuration` | 类 | 转换为 Configuration 子类 |
+| `@struct` | 类 | 标记为数据结构（dataclass） |
+| `@function` | 函数 | 转换为 Function 子类 |
+| `@inject` | 类/函数 | 自动按类型注入依赖 |
+| `@inject_name` | 类/函数 | 自动按名称注入依赖 |
+| `@config` | 类 | 从配置注入 Struct 字段 |
+| `@depends_on("A", "B")` | 类 | 声明 Bean 依赖 |
+| `@import_class(Cls)` | 类 | 自动注册外部类到工厂 |
+| `@maker` | 方法 | 标记方法返回值为 Bean |
+| `@no_maker` | 方法 | 排除方法，不自动注册 |
+
+## 插件系统
+
+Pancake 采用插件化架构，所有扩展功能通过插件提供。插件通过 `pancake.xml` 的 `<dependencies>` 声明。
+
+### 插件列表
+
+| 插件 | 包名 | 说明 |
+|------|------|------|
+| **embed** | `pancake-embed` | 零 import 机制，注入 builtins |
+| **mybatis** | `pancake-mybatis` | MyBatis Plus ORM |
+| **web** | `pancake-web` | aiohttp Web 服务器 |
+| **web-template** | `pancake-web-template` | Jinja2 模板渲染 |
+| **web-security** | `pancake-web-security` | Spring Security 风格安全 |
+| **ai** | `pancake-ai` | AI 模型集成 |
+| **redis** | `pancake-redis` | Redis 缓存 |
+| **langgraph** | `pancake-langgraph` | LangGraph 工作流 |
+| **remote** | `pancake-remote` | HTTP/gRPC 远程调用 |
+| **cui** | `pancake-cui` | Click CLI 框架 |
+| **gui** | `pancake-gui` | Flet 桌面 GUI |
+
+### 插件管理
+
+```bash
+pancake plugin list              # 列出已配置的插件
+pancake plugin add <name>        # 添加插件到 pancake.xml
+pancake plugin remove <name>     # 移除插件
+pancake plugin clear             # 清空所有插件
+```
+
+### pancake.xml 配置
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<pancake>
+    <config>
+        <service.title>myapp</service.title>
+        <service.port>8080</service.port>
+    </config>
+    <dependencies>
+        <dependency>
+            <groupId>io.pancake</groupId>
+            <artifactId>embed</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.pancake</groupId>
+            <artifactId>mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.pancake</groupId>
+            <artifactId>web</artifactId>
+        </dependency>
+    </dependencies>
+</pancake>
+```
 
 ## 文档
 
-| 模块 | 说明 |
-|------|------|
-| [CLI](docs/cn/cli.md) | 命令行工具 |
-| [Web](docs/cn/web.md) | 控制器、过滤器链、认证、中间件、WebSocket |
-| [MyBatis ORM](docs/cn/mybatis.md) | Mapper、CRUD、链式查询、动态 SQL |
-| [AI](docs/cn/ai.md) | LLM 客户端、记忆、RAG |
-| [Redis](docs/cn/redis.md) | 缓存、数据结构、分布式锁 |
-| [配置](docs/cn/config.md) | YAML/XML/环境变量配置 |
-| [插件](docs/cn/plugin.md) | 插件系统和内置插件 |
-| [消息队列](docs/cn/messaging.md) | 事件驱动消息队列 |
-| [远程调用](docs/cn/remote.md) | HTTP 和 gRPC 远程调用 |
-| [安全](docs/cn/security.md) | 密码哈希、API Key、CSRF、OAuth2、会话管理 |
+| 模块                                                         | 说明                                                       |
+|------------------------------------------------------------|----------------------------------------------------------|
+| [框架教程 (中文)](docs/tutorial/zh/README.md)                    | 完整教程，涵盖核心概念和所有插件                                         |
+| [Framework Tutorial (English)](docs/tutorial/en/README.md) | Complete tutorial covering core concepts and all plugins |
 
 ## 可选依赖
 
 ```bash
-pip install pancake_framework[ai]          # AI 模块
+pip install pancake_framework[ai]          # AI 模块 (openai)
+pip install pancake_framework[redis]       # Redis 缓存
+pip install pancake_framework[sqlite]      # SQLite 数据库
+pip install pancake_framework[postgres]    # PostgreSQL 数据库
+pip install pancake_framework[mysql]       # MySQL 数据库
 pip install pancake_framework[langgraph]   # LangGraph 工作流
-pip install pancake_framework[redis]       # Redis 缓存和消息队列
 pip install pancake_framework[grpc]        # gRPC 远程调用
-pip install pancake_framework[cui]         # Click CLI 命令
 pip install pancake_framework[gui]         # Flet GUI
 pip install pancake_framework[all]         # 全部可选依赖
 ```
@@ -115,128 +206,50 @@ pip install pancake_framework[all]         # 全部可选依赖
 ## 项目结构
 
 ```
-pancake/
-├── dough.py           # Dough 基类、Scope 枚举、DoughMeta 元类
-├── registry.py        # 全局类/装饰器注册表
-├── decorators.py      # @Singleton、@Prototype、@Lazy、@inject 等
-├── settings.py        # 集中配置管理
-├── run.py             # 启动流水线
-├── base/              # Configuration、Function、Service、Struct
-├── factory/           # DoughFactory — Bean 生命周期管理
-├── builder/           # 构建流水线、插件加载、源码加载
-├── cli/               # CLI 命令（create/run/plugin/config）
-├── ovenware/          # Broker 消息队列
-├── resource/          # YAML/JSON/XML 配置加载器
-└── tool/              # 工具类
+pancake/                    # 框架核心
+├── __init__.py             # 入口: init() → run()
+├── run.py                  # 启动流水线: load_xml → load_config → load_ovenware → load_dish → build
+├── dough.py                # Dough 基类、Scope 枚举、DoughMeta 元类
+├── registry.py             # 全局注册表: flour/water/egg/sugar
+├── decorators/             # 装饰器: scope/bean/inject/config/convert
+├── settings.py             # 集中配置管理
+├── base/                   # 基类: Configuration、Service、Struct、Function
+├── factory/                # DoughFactory Bean 工厂 + PackageManager
+├── builder/                # 构建流水线: load_dlc(插件) + load_src(用户代码) + build
+├── cli/                    # CLI: init/create/run/check/build/plugin/config/audit
+├── ovenware/               # 插件基类 InitAction + Broker 消息队列
+├── resource/               # 配置加载: YAML/JSON/XML + 日志 + 热重载
+└── tool/                   # 工具: ProgressBar
 ```
 
-## TODO
+## CLI 命令
 
-### 核心 / IoC
+```bash
+pancake version              # 显示版本
+pancake init                 # 在当前目录初始化项目
+pancake create <name>        # 创建新项目
+pancake run                  # 运行项目
+pancake check                # 检查项目结构和环境
+pancake build                # 打包项目为 wheel
+pancake config show          # 显示当前配置
+pancake audit                # 审核代码质量
+pancake update               # 更新框架
+pancake install              # 安装缺失依赖
+```
 
-- [x] 数据库迁移支持
-- [x] 配置热重载
-- [x] 分页 `Page` 对象抽象
-- [x] OpenTelemetry / 指标集成
-- [x] 优雅关闭（信号处理）
-- [x] WebSocket 支持
-- [x] 限流中间件
-- [x] API 文档自动生成
-- [x] 多数据库方言（SQLite/PG/MySQL 类型映射）
-- [x] 连接池健康检查和自动重连
-- [x] JWT 认证支持
-- [x] 定时任务（cron）
-- [x] CLI 交互式代码（REPL）
-- [x] Bean 生命周期回调 — `on_init`(@PostConstruct)、`on_destroy`(@PreDestroy)
-- [x] 懒加载 — `@Lazy` 延迟 Bean 创建
-- [x] 依赖解析 — `@DependsOn` 拓扑排序、`@Import` 自动注册
-- [x] 异步生命周期 — 所有生命周期方法支持 `async def`
-- [x] 零 import — 所有装饰器/服务自动注入 builtins
-- [x] 循环依赖检测 — 拓扑排序检测并报告循环
-- [x] 集成测试 — 42 个测试覆盖多层依赖、菱形依赖、边界场景
-- [ ] 自动配置 — 自动检测依赖并配置默认值
-- [ ] Profiles — 环境特定配置（dev / test / prod）
-- [ ] 条件 Bean — `@ConditionalOnProperty`、`@ConditionalOnClass`
-- [ ] 事件系统 — `@EventListener`、应用事件（ContextRefreshed 等）
-- [ ] 属性绑定 — YAML/ENV 自动映射到 dataclass（`@ConfigurationProperties`）
+## 启动流程
 
-### Web / REST
-
-- [ ] CORS 配置 — 全局和按路由 CORS 策略
-- [ ] API 版本控制 — `/api/v1/users`、`/api/v2/users`
-- [ ] 异常处理器 — `@ExceptionHandler`、全局错误响应
-- [ ] 请求日志中间件 — 自动记录 method、path、status、duration
-- [ ] 响应压缩 — gzip/brotli 中间件
-- [ ] 文件上传 — `@multipart`、multipart/form-data 处理
-- [ ] Server-Sent Events — `@sse_controller` 实时推送
-- [ ] 请求体验证 — Pydantic 风格 `@Valid` 请求模型
-- [ ] 内容协商 — 根据 Accept 头返回 JSON / XML
-- [ ] 异步路由 — 自动检测 async vs sync 函数
-- [ ] 静态文件服务 — 内置静态目录挂载
-- [ ] 请求 ID — 自动生成和传播 `X-Request-Id`
-
-### 安全
-
-- [x] OAuth2 支持 — OAuth2 客户端和资源服务器
-- [x] API Key 认证 — `@api_key_required` 基于头部的认证
-- [x] 密码哈希 — bcrypt/argon2 集成
-- [x] CSRF 保护 — 基于 Token 的 CSRF 表单提交保护
-- [x] 安全头部 — 自动添加 HSTS、X-Frame-Options、CSP
-- [x] IP 白名单/黑名单 — 基于中间件的 IP 过滤
-- [x] 会话管理 — 服务端会话，支持 Redis/内存存储
-
-### 数据 / ORM
-
-- [ ] 事务传播 — REQUIRED、REQUIRES_NEW、NESTED
-- [ ] 软删除 — `@SoftDelete`、`deleted_at` 列支持
-- [ ] 自动时间戳 — `created_at`、`updated_at` 自动填充
-- [ ] 乐观锁 — version 字段并发更新安全
-- [ ] 多数据源 — 同时连接多个数据库
-- [ ] 数据库种子 — 启动时自动插入初始数据
-- [ ] 查询日志 — SQL 语句日志及执行时间
-- [ ] 原始 SQL 辅助 — `db.execute_raw(sql)` 带安全检查
-- [ ] 关系映射 — 一对多、多对多懒加载/急加载
-
-### AOP / 中间件
-
-- [ ] AOP（面向切面编程）— `@Before`、`@After`、`@Around` 切点
-- [ ] 重试机制 — `@Retry(max=3, delay=1)` 不稳定操作
-- [ ] 熔断器 — `@CircuitBreaker` 容错
-- [ ] 缓存抽象 — `@Cacheable`、`@CacheEvict`（多后端：内存/Redis）
-- [ ] 异步执行 — `@Async` 非阻塞后台任务
-- [ ] 方法计时 — `@Timed` 方法执行指标
-- [ ] 分布式锁 — `@DistributedLock` 并发访问控制
-
-### 可观测性
-
-- [ ] 结构化日志 — JSON 日志输出带关联 ID
-- [ ] 健康指标 — 自定义健康检查（DB、Redis、外部 API）
-- [ ] 分布式追踪 — OpenTelemetry 追踪上下文传播
-- [ ] 日志级别 API — 运行时通过 REST 端点修改日志级别
-
-### 插件系统
-
-- [x] XML 声明式插件 — pancake.xml `<dependencies>` 管理
-- [x] 自动 pip 安装 — import 优先，ImportError 时自动 pip install
-- [x] CLI 管理 — `pancake plugin list/add/remove/clear`
-- [x] CLI 模块化 — 拆分为 cli/ 包（project/config/plugin/misc）
-- [ ] 插件市场 — 集中注册表发现插件
-- [ ] 插件版本约束 — `<version>` 标签支持 semver 匹配
-- [ ] 插件钩子 — `on_install`、`on_uninstall`、`on_upgrade` 生命周期
-
-### DevOps / CLI
-
-- [x] CLI 模块化 — 拆分为 cli/ 包（project/config/plugin/misc）
-- [ ] 项目脚手架 — `pancake create` 模板（API / 全栈 / 微服务）
-- [ ] 代码生成 — 从表结构自动生成 Mapper/Controller
-- [ ] DevTools — 代码变更自动重启（watchdog）
-- [ ] Docker 支持 — 自动生成 Dockerfile 和 docker-compose.yml
-- [ ] 配置验证 — 启动时验证必需配置项
-- [ ] 试运行 — `pancake check` 完整依赖和配置验证
-
-### 性能
-
-- [ ] C 扩展 — 将热路径模块（sql_parser、wrapper、jwt）转为 C 加速
+```
+main.py → pancake.run()
+  ├── init()                    # 环境检查、结构检查、加载 dotenv/logging
+  └── run.py → run()
+      ├── load_xml()            # 加载 pancake.xml → 插件列表 + 全局配置
+      ├── load_config()         # 加载 YAML/JSON → settings
+      ├── load_ovenware()       # 加载插件 (按 init_order 排序)
+      ├── load_dish()           # 加载用户代码 src/
+      ├── build()               # 创建 Bean → 拓扑排序 → on_init → on_start
+      └── run_loop_methods()    # 运行 loop_method (如 Web 服务器)
+```
 
 ## 测试
 

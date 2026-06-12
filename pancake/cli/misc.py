@@ -36,6 +36,15 @@ def cmd_update(args):
         sys.exit(1)
 
 
+_PKG_TO_MODULE = {
+    "pyyaml": "yaml",
+    "python-dotenv": "dotenv",
+    "python-dateutil": "dateutil",
+    "pillow": "PIL",
+    "scikit-learn": "sklearn",
+}
+
+
 def cmd_install(args):
     """安装缺失依赖"""
     print("检查依赖...")
@@ -47,7 +56,7 @@ def cmd_install(args):
 
     missing = []
     for dep in core_deps:
-        module = dep.replace("-", "_").replace("python_", "")
+        module = _PKG_TO_MODULE.get(dep, dep.replace("-", "_").replace("python_", ""))
         try:
             __import__(module)
         except ImportError:

@@ -9,8 +9,8 @@ def cmd_init(args):
     """在当前目录初始化项目"""
     cwd = os.getcwd()
 
-    if os.path.exists("main.py"):
-        print("错误: 当前目录已有 main.py，看起来已经是一个项目")
+    if os.path.exists("main.py") or os.path.exists("pancake.xml"):
+        print("错误: 当前目录已有 Pancake 项目文件（main.py 或 pancake.xml）")
         sys.exit(1)
 
     name = os.path.basename(cwd)
@@ -19,14 +19,13 @@ def cmd_init(args):
     dirs = [
         os.path.join("src", "resource", "yaml"),
         os.path.join("src", "resource", "json"),
-        os.path.join("src", "mapper"),
         os.path.join("src", "templates"),
     ]
     for d in dirs:
         os.makedirs(d, exist_ok=True)
 
     with open("main.py", "w", encoding="utf-8") as f:
-        f.write('import pancake\n\npancake.run()\n')
+        f.write('import pancake\n\nif __name__ == "__main__":\n    pancake.run()\n')
 
     with open("pancake.xml", "w", encoding="utf-8") as f:
         f.write(f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -38,10 +37,6 @@ def cmd_init(args):
         <dependency>
             <groupId>io.pancake</groupId>
             <artifactId>embed</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.pancake</groupId>
-            <artifactId>mybatis</artifactId>
         </dependency>
     </dependencies>
 </pancake>
@@ -78,7 +73,7 @@ def cmd_create(args):
         os.makedirs(d)
 
     with open(os.path.join(project_dir, "main.py"), "w", encoding="utf-8") as f:
-        f.write('import pancake\n\npancake.run()\n')
+        f.write('import pancake\n\nif __name__ == "__main__":\n    pancake.run()\n')
 
     with open(os.path.join(project_dir, "pancake.xml"), "w", encoding="utf-8") as f:
         f.write(f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -90,10 +85,6 @@ def cmd_create(args):
         <dependency>
             <groupId>io.pancake</groupId>
             <artifactId>embed</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.pancake</groupId>
-            <artifactId>mybatis</artifactId>
         </dependency>
     </dependencies>
 </pancake>
@@ -113,7 +104,7 @@ authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pancake = "*"
+pancake-framework = "*"
 
 [build-system]
 requires = ["poetry-core"]
@@ -124,6 +115,34 @@ build-backend = "poetry.core.masonry.api"
     print(f"  cd {name}")
     print(f"  pip install pancake")
     print(f"  python main.py")
+
+
+def _get_paths_from_xml():
+    """从 pancake.xml 读取路径配置（不触发框架初始化）"""
+    import xml.etree.ElementTree as ET
+    defaults = {
+        "yaml_dir": os.path.join("src", "resource", "yaml"),
+        "json_dir": os.path.join("src", "resource", "json"),
+    }
+    xml_path = "pancake.xml"
+    if not os.path.exists(xml_path):
+        return defaults
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        config = root.find("config") or root.find("global")
+        if config is not None:
+            for prop in config.findall("property"):
+                name = prop.get("name", "")
+                value = prop.get("value", "")
+                if name.startswith("paths.") and value:
+                    defaults[name[6:]] = value
+            for child in config:
+                if child.tag.startswith("paths.") and child.text:
+                    defaults[child.tag[6:]] = child.text.strip()
+    except Exception:
+        pass
+    return defaults
 
 
 def cmd_check(args):
@@ -140,14 +159,18 @@ def cmd_check(args):
             content = f.read()
             if "import pancake" not in content:
                 warnings.append("main.py 中未找到 'import pancake'")
+            if "pancake.run()" in content and '__name__' not in content:
+                warnings.append("main.py 中 pancake.run() 缺少 if __name__ == \"__main__\": 保护")
 
     if not os.path.exists("pancake.xml"):
         warnings.append("缺少 pancake.xml（可选，用于插件配置）")
 
+    paths = _get_paths_from_xml()
+
     if not os.path.isdir("src"):
         errors.append("缺少 src 目录")
     else:
-        yaml_dir = os.path.join("src", "resource", "yaml")
+        yaml_dir = paths.get("yaml_dir", os.path.join("src", "resource", "yaml"))
         if not os.path.isdir(yaml_dir):
             warnings.append(f"缺少 {yaml_dir} 目录")
         else:
@@ -159,10 +182,11 @@ def cmd_check(args):
         if not os.path.isdir(template_dir):
             warnings.append(f"缺少 {template_dir} 目录（模板渲染需要）")
 
-    try:
-        import pancake  # noqa: F401
+    # 无副作用地检查 pancake 是否安装
+    import importlib.util
+    if importlib.util.find_spec("pancake") is not None:
         print("  [OK] pancake 已安装")
-    except ImportError:
+    else:
         errors.append("pancake 未安装，请运行: pip install pancake")
 
     if errors:

@@ -132,7 +132,7 @@ def cmd_plugin_remove(args):
                 deps_elem.remove(dep)
                 found = True
                 break
-        if len(deps_elem) == 0:
+        if not deps_elem.findall("dependency"):
             root.remove(deps_elem)
 
     if not found:

@@ -40,6 +40,12 @@ def cmd_audit(args):
                     continue
                 if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
                     continue
+                # 跳过 if __name__ == "__main__": 块
+                if isinstance(node, ast.If):
+                    if (isinstance(node.test, ast.Compare)
+                            and isinstance(node.test.left, ast.Name)
+                            and node.test.left.id == "__name__"):
+                        continue
 
                 node_type = type(node).__name__
                 lineno = getattr(node, "lineno", "?")

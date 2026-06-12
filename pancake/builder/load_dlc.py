@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 def _resolve_package_name(group_id: str, artifact_id: str) -> str:
     """根据 groupId 和 artifactId 推算 Python 包名
 
-    io.pancake → pancake_{artifactId}
+    io.pancake → pancake_{artifactId}（连字符转下划线）
     其他       → {groupId}_{artifactId}
     """
     if group_id == "io.pancake":
-        return f"pancake_{artifact_id}"
-    return f"{group_id}_{artifact_id}"
+        return f"pancake_{artifact_id}".replace("-", "_")
+    return f"{group_id}_{artifact_id}".replace("-", "_")
 
 
 def _try_import(package_name: str):
@@ -73,11 +73,11 @@ def _load_plugins():
     for dep in dependencies:
         group_id = dep.get("groupId", "io.pancake")
         artifact_id = dep.get("artifactId", "")
-        if not artifact_id:
+        enabled = dep.get("enabled", True)
+        if not artifact_id or not enabled:
             continue
 
         name = artifact_id
-        enabled = dep.get("enabled", True)
 
         if name in disabled:
             logger.info(f"Plugin {name} disabled, skipping")
